@@ -102,7 +102,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#7c3aed">
-  <script>window.__APP_VER = "61c56e3bf1";</script>
+  <script>window.__APP_VER = "fef3d3e2e0";</script>
 </head>
 <body>
 <div class="screen" id="меню">
@@ -445,7 +445,7 @@ function построитьЭтаж() {
   for (const s of [-1, 1]) сетка(new THREE.BoxGeometry(88, 0.14, 0.14), мат.пластик(0xf4ecd8, 0.6), -2, 3.03, s*2.93);
   // стены коридора: внизу деревянная панель, сверху обои
   const проёмыС = [[-18, 1.2, 2.3], [-2, 1.2, 2.3], [14, 1.2, 2.3], [30, 1.2, 2.3]];
-  стена('x', 3, -46, 42, 3.1, проёмыС, обоиТ, -1); стена('x', -3, -46, 42, 3.1, [[29, 1.6, 2.4], [-3, 1.2, 2.3], [-30, 1.2, 2.3]], обоиТ, 1);
+  стена('x', 3, -46, 42, 3.1, проёмыС, обоиТ, -1); стена('x', -3, -46, 42, 3.1, [[29, 1.6, 2.4], [-3, 1.2, 2.3], [-30, 1.2, 2.3], [16, 1.2, 2.3]], обоиТ, 1);
   for (const [z, s] of [[2.92, -1], [-2.92, 1]]) { сетка(new THREE.BoxGeometry(88, 1, 0.04), мат.карта(деревоТ('#4a2c18', '#24140a', [20, 1]), 0.6), -2, 0.5, z);
     сетка(new THREE.BoxGeometry(88, 0.06, 0.07), латуньМ, -2, 1.02, z); }
   стена('z', -46, -3, 3, 3.1, [], обоиТ, 1); стена('z', 42, -3, 3, 3.1, [[0, 1.6, 2.6]], обоиТ, -1);
@@ -477,9 +477,11 @@ function построитьЭтаж() {
   // номера друзей и твой
   for (const [x, номер] of [[-18, '501'], [-2, '502'], [14, '503'], [30, '505']]) номер_(x, номер);
   // лестница (закрыта на ремонт), бельевая
-  дверь(-3, -3, 'x', 'ЛЕСТНИЦА', true); лента(-3, -3.05);
-  дверь(-30, -3, 'x', 'БЕЛЬЁ', true);
+  дверь(-3, -3, 'x', 'ЛЕСТНИЦА', true).сообщ = '🚧 Лестница на ремонте — заколочено'; лента(-3, -3.05);
+  дверь(-30, -3, 'x', 'БЕЛЬЁ', true).сообщ = '🔒 Бельевая заперта';
+  const д504 = дверь(16, -3, 'x', '504', true); д504.сообщ = '🚪 «Не беспокоить». Тут никого.';
   лифт(29, -3);
+  дело(30.15, -2.5, 1.5, '🛗 Вызвать лифт', null, () => { Snd.тон(300, 0.15, 'square', 0.04); big('🛗 Кнопка не горит…\nЛифт не едет', 1.6, '#cbd5e1'); });
   мусоропровод();
 }
 function кадка(x, z) {
@@ -546,7 +548,10 @@ function номер_(cx, номер) {
   const з = зеркало(x0 + 0.08, 1.6, 8.6, Math.PI/2, друг || null, 'этаж');
   const д = дверь(cx, z0, 'x', номер, false);
   ЭТ.номера[номер] = { cx, дверь:д, зеркало:з, друг, проверен:false, внутри:(x, z) => x > x0 && x < x1 && z > z0 && z < z1 };
-  if (номер === '505') { лампа('этаж', x1 - 0.4, 1.3, 8.6 - 1.45, 0xffcf80, 4, 7); }
+  if (номер === '505') { лампа('этаж', x1 - 0.4, 1.3, 8.6 - 1.45, 0xffcf80, 9, 10); лампа('этаж', cx, 2.7, 8, 0xffe2b0, 6, 12);   // твой номер — светлый, обжитой
+    const твТ = холст(512, 128, (g, w, h) => { g.fillStyle = '#2a1a05'; g.fillRect(0, 0, w, h); g.strokeStyle = '#c9a24a'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
+      g.fillStyle = '#f5d68a'; g.font = 'bold 52px Georgia'; g.textAlign = 'center'; g.fillText('505 · ТВОЙ НОМЕР', w/2, 84); });
+    const тв = сетка(new THREE.PlaneGeometry(1.5, 0.38), new THREE.MeshStandardMaterial({ map:твТ, emissive:0xffcf80, emissiveMap:твТ, emissiveIntensity:0.5 }), cx, 2.55, z0 - 0.08); тв.rotation.y = Math.PI; }
 }
 /* 🛗 ЛИФТ: латунные двери, табло этажа, кнопка. Едет — двери разъезжаются */
 function лифт(x, z) {
@@ -867,22 +872,39 @@ function баррикадаВещь(i) {
 
 
 /* ═══════════ 🚀 РАКЕТА-3000 и 🔦 СПЕКТР ═══════════ */
-function ракетаМодель() {
+/* 🚀 РАКЕТА-3000 — как «Ракета» из «Гонок пылесосов» (просьба Марка): лежачий красный корпус-капсула, серебряный нос,
+   четыре плавника сзади, полозья-лыжи, ручка сверху, звезда на боку — и на шланге труба с ЩЁТКОЙ (жёлтый ворс) */
+function ракетаКорпус(цвет, светКольца) {
   const g = new THREE.Group();
-  const корп = мат.глянец(0xd62828), бел = мат.глянец(0xf4f1ea), хром = мат.металл(0xd0d4da, 0.2), свет = мат.светит(0x7dd3fc, 1.6);
-  const тело = new THREE.LatheGeometry([[0, 0], [0.22, 0], [0.26, 0.05], [0.27, 0.5], [0.25, 0.68], [0.18, 0.84], [0.08, 0.95], [0, 0.98]].map(([a, b]) => new THREE.Vector2(a, b)), 40);
-  сетка(тело, корп, 0, 0.12, 0, g);
-  сетка(new THREE.CylinderGeometry(0.275, 0.275, 0.1, 40), бел, 0, 0.45, 0, g);
-  сетка(new THREE.TorusGeometry(0.275, 0.015, 8, 40), свет, 0, 0.52, 0, g).rotation.x = Math.PI/2;
-  const окно = сетка(new THREE.CircleGeometry(0.07, 24), мат.стекло(0x7dd3fc, 0.8), 0, 0.68, 0.24, g); окно.rotation.x = -0.25;
-  сетка(new THREE.TorusGeometry(0.075, 0.012, 6, 24), хром, 0, 0.68, 0.242, g).rotation.x = -0.25;
-  for (let i = 0; i < 3; i++) { const к = new THREE.Shape(); к.moveTo(0, 0); к.lineTo(0.2, -0.05); к.lineTo(0.22, -0.2); к.lineTo(0, 0.18); к.closePath();
-    const кр = new THREE.Mesh(new THREE.ExtrudeGeometry(к, { depth:0.025, bevelEnabled:true, bevelSize:0.01, bevelThickness:0.01, bevelSegments:2 }), бел);
-    const д = new THREE.Group(); д.rotation.y = i*Math.PI*2/3; g.add(д); кр.position.set(0.24, 0.32, -0.012); д.add(кр); кр.castShadow = true; }
-  сетка(new THREE.CylinderGeometry(0.12, 0.16, 0.12, 24), хром, 0, 0.06, 0, g);
-  const шл = new THREE.CatmullRomCurve3([[0.18, 0.3, 0.15], [0.45, 0.2, 0.35], [0.55, 0.05, 0.1], [0.4, 0.04, -0.25], [0.15, 0.05, -0.35]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+  const кМ = мат.глянец(цвет ?? 0xd62828), серебро = мат.металл(0xdfe6ee, 0.22), тёмн = мат.пластик(0x2c2f38, 0.45);
+  const тело = сетка(new THREE.CapsuleGeometry(0.55, 1.3, 14, 28), кМ, 0, 0.62, 0.1, g); тело.rotation.x = Math.PI/2;
+  const нос = сетка(new THREE.ConeGeometry(0.55, 0.95, 28), серебро, 0, 0.62, -1.05, g); нос.rotation.x = -Math.PI/2;
+  for (let k = 0; k < 4; k++) { const a = k/4*Math.PI*2 + Math.PI/4; const пл = сетка(скругл(0.07, 0.55, 0.55, 0.02), k % 2 ? мат.пластик(0xf4f1ea, 0.4) : мат.глянец(0xa51d1d), Math.cos(a)*0.52, 0.62 + Math.sin(a)*0.52, 1.0, g); пл.rotation.z = a - Math.PI/2; }
+  for (const x of [-0.4, 0.4]) { сетка(скругл(0.1, 0.1, 1.9, 0.04), серебро, x, 0.07, 0.1, g); const н = сетка(new THREE.BoxGeometry(0.1, 0.3, 0.12), серебро, x, 0.2, -0.85, g); н.rotation.x = 0.7;
+    сетка(new THREE.BoxGeometry(0.08, 0.35, 0.08), серебро, x, 0.28, 0.5, g); }
+  const ручка = сетка(new THREE.TorusGeometry(0.22, 0.05, 10, 20), мат.металл(0x33384a, 0.3), 0, 1.18, 0.2, g); ручка.rotation.x = Math.PI/2;
+  const пояс = сетка(new THREE.TorusGeometry(0.565, 0.05, 12, 30), серебро, 0, 0.62, 0.1, g); пояс.rotation.x = Math.PI/2;
+  const кольцо = сетка(new THREE.TorusGeometry(0.565, 0.025, 8, 30), мат.светит(светКольца ?? 0x7dd3fc, 1.6), 0, 0.62, -0.45, g); кольцо.rotation.x = Math.PI/2; g.userData.кольцо = кольцо;
+  const звТ = холст(128, 128, (gg, w, h) => { gg.fillStyle = '#ffffff'; gg.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 22 : 54, a = -Math.PI/2 + i*Math.PI/5; gg.lineTo(64 + Math.cos(a)*r, 64 + Math.sin(a)*r); } gg.fill(); });
+  for (const d of [-1, 1]) { const зв = сетка(new THREE.PlaneGeometry(0.34, 0.34), new THREE.MeshStandardMaterial({ map:звТ, transparent:true, roughness:0.4 }), 0.565*d, 0.72, 0.25, g); зв.rotation.y = d*Math.PI/2; зв.castShadow = false; }
+  const надТ = холст(512, 96, (gg, w, h) => { gg.clearRect(0, 0, w, h); gg.fillStyle = '#ffffff'; gg.font = 'italic 900 60px Georgia'; gg.textAlign = 'center'; gg.fillText('Ракета-3000', w/2, 70); });
+  for (const d of [-1, 1]) { const н = сетка(new THREE.PlaneGeometry(1.0, 0.19), new THREE.MeshStandardMaterial({ map:надТ, transparent:true }), 0.566*d, 0.48, -0.15, g); н.rotation.y = d*Math.PI/2; н.castShadow = false; }
+  return g;
+}
+function щёткаМодель(цветВорса) {                    // прямоугольная щётка с двумя рядами жёлтого ворса и щелью посередине
+  const g = new THREE.Group(), тёмн = мат.пластик(0x2c2f38, 0.45), ворс = мат.пластик(цветВорса ?? 0xffcf3a, 0.8);
+  сетка(скругл(1.3, 0.18, 0.45, 0.06), тёмн, 0, 0.18, 0, g);
+  for (const z of [-0.17, 0.17]) сетка(new THREE.BoxGeometry(1.25, 0.12, 0.1), ворс, 0, 0.06, z, g);
+  const щель = сетка(new THREE.PlaneGeometry(1.0, 0.08), мат.светит(0x0b1220, 0.2), 0, 0.06, -0.226, g); щель.rotation.x = 0; g.userData.щель = щель;
+  for (const x of [-0.6, 0.6]) { const к = сетка(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 14), мат.резина(), x, 0.07, 0.12, g); к.rotation.z = Math.PI/2; }
+  return g;
+}
+function ракетаМодель(цвет) {                      // на подставке в гараже: корпус, шланг, труба и щётка рядом
+  const g = new THREE.Group(); const к = ракетаКорпус(цвет); к.scale.setScalar(0.42); g.add(к);
+  const щ = щёткаМодель(); щ.scale.setScalar(0.42); щ.position.set(0.42, 0, -0.5); щ.rotation.y = 0.5; g.add(щ);
+  const шл = new THREE.CatmullRomCurve3([[0, 0.3, -0.42], [0.1, 0.12, -0.6], [0.3, 0.05, -0.55], [0.38, 0.2, -0.45], [0.42, 0.42, -0.3]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
   сетка(new THREE.TubeGeometry(шл, 40, 0.035, 10), мат.резина(0x2a2d33), 0, 0, 0, g);
-  const нас = сетка(new THREE.CylinderGeometry(0.035, 0.06, 0.32, 16), хром, 0.08, 0.05, -0.45, g); нас.rotation.x = Math.PI/2;
+  const тр = сетка(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 12), мат.металл(0xd0d4da, 0.2), 0.42, 0.25, -0.4, g); тр.rotation.x = 0.4;
   return g;
 }
 function спектрМодель() {
@@ -907,18 +929,20 @@ function построитьРуки() {
   сетка(скругл(0.07, 0.14, 0.01, 0.008), мат.пластик(0x111318, 0.3), 0, 0.04, -0.01, тел).rotation.x = -0.4;
   const экр = сетка(new THREE.PlaneGeometry(0.06, 0.12), мат.светит(0x334155, 0.35), 0, 0.04, -0.004, тел); экр.rotation.x = -0.4; экр.position.z = 0.0;
   const сп = спектрМодель(); сп.rotation.x = -Math.PI/2 + 0.15; сп.position.set(0, 0, -0.05); сп.visible = false; л.add(сп); РУКИ.спектр = сп;
-  // правая: сопло и шланг Ракеты
+  // правая: труба со ЩЁТКОЙ на конце, шланг уходит к Ракете, сама Ракета видна внизу справа (как в «Гонках»)
   const п = РУКИ.правая; п.position.set(0.3, -0.3, -0.55); п.visible = false;
-  const хром = мат.металл(0xd0d4da, 0.2), корп = мат.глянец(0xd62828);
-  const ст = сетка(new THREE.CylinderGeometry(0.045, 0.07, 0.5, 20), хром, 0, 0.03, -0.18, п); ст.rotation.x = Math.PI/2;
-  сетка(new THREE.CylinderGeometry(0.075, 0.075, 0.12, 20), корп, 0, 0.03, 0.08, п).rotation.x = Math.PI/2;
-  РУКИ.кольцо = сетка(new THREE.TorusGeometry(0.075, 0.012, 8, 24), мат.светит(0x7dd3fc, 1.5), 0, 0.03, 0.02, п);
-  РУКИ.сопло = сетка(new THREE.RingGeometry(0.02, 0.045, 20), мат.светит(0x0b1220, 0.2), 0, 0.03, -0.431, п);
-  сетка(new THREE.CapsuleGeometry(0.045, 0.15, 6, 12), кожа, 0.02, -0.04, 0.12, п).rotation.x = 1.4;
-  const шл = new THREE.CatmullRomCurve3([[0, 0.03, 0.14], [0.05, -0.08, 0.3], [0.1, -0.3, 0.38]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
-  сетка(new THREE.TubeGeometry(шл, 20, 0.035, 10), мат.резина(0x2a2d33), 0, 0, 0, п);
+  const хром = мат.металл(0xd0d4da, 0.2);
+  const тр = сетка(new THREE.CylinderGeometry(0.03, 0.03, 0.62, 16), хром, 0, 0.0, -0.2, п); тр.rotation.x = Math.PI/2 - 0.12;
+  сетка(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 16), мат.пластик(0x2c2f38, 0.4), 0, 0.03, 0.12, п).rotation.x = Math.PI/2;
+  const щ = щёткаМодель(); щ.scale.setScalar(0.3); щ.position.set(-0.02, -0.1, -0.58); щ.rotation.x = -1.05; п.add(щ); РУКИ.щётка = щ;   // наклонена к тебе — видно жёлтый ворс
+  const шея = сетка(new THREE.CylinderGeometry(0.022, 0.03, 0.08, 12), мат.пластик(0x2c2f38, 0.4), 0, -0.035, -0.5, п); шея.rotation.x = 0.5;
+  РУКИ.сопло = щ.userData.щель; РУКИ.кольцо = щ.userData.щель;
+  const р = ракетаКорпус(); р.scale.setScalar(0.2); р.position.set(0.2, -0.2, -0.02); р.rotation.set(0.35, -0.5, 0.1); п.add(р); РУКИ.ракетаВРуке = р;
+  const шл = new THREE.CatmullRomCurve3([[0, 0.03, 0.18], [0.04, -0.1, 0.25], [0.08, -0.26, 0.05], [0.12, -0.3, -0.1]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+  сетка(new THREE.TubeGeometry(шл, 20, 0.025, 10), мат.резина(0x2a2d33), 0, 0, 0, п);
+  сетка(new THREE.CapsuleGeometry(0.045, 0.15, 6, 12), кожа, 0.02, -0.03, 0.12, п).rotation.x = 1.4;
   РУКИ.поток = new THREE.Mesh(new THREE.ConeGeometry(0.9, 8, 24, 1, true), new THREE.MeshBasicMaterial({ color:0x9fd8ff, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide }));
-  РУКИ.поток.rotation.x = -Math.PI/2; РУКИ.поток.position.set(0, 0.03, -4.4); п.add(РУКИ.поток);
+  РУКИ.поток.rotation.x = -Math.PI/2; РУКИ.поток.position.set(0, -0.08, -4.6); п.add(РУКИ.поток);
   [л, п].forEach(g => g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.renderOrder = 2; } }));
 }
 /* ═══════════ 👻 ПРИЗРАКИ — полупрозрачные (правило Марка), с сиянием по краю ═══════════ */
@@ -1364,7 +1388,7 @@ function мерцание(k) { ЗОНЫ.этаж.свет.forEach(L => L.intensi
 
 /* ═══════════ 🌙 ЭТАП 1: НОЧЬ. Крик → обойти номера друзей (это игра, не заставка — Марк) ═══════════ */
 function этапНочь() {
-  войтиВЗону('этаж'); встать(27.5, 0, 8.2, 0.9, -0.05); фонарь(true);
+  войтиВЗону('этаж'); встать(27.5, 0, 8.2, 0.9, -0.05); фонарь(true); открытьДверь(ЭТ.номера['505'].дверь, true);
   big('🏨 Отель «Полтергейст»\n5-й этаж · ночь', 3, '#f5ecd9');
   задача('🛏 Ты в своём номере 505. Друзья — в 501, 502 и 503…');
   let t = 0, крик = false, найдено = 0;
