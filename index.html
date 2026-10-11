@@ -43,6 +43,11 @@
   .окно p { color:#cbc5dc; line-height:1.55; margin-bottom:12px; font-size:15px; }
   .глава { display:flex; gap:12px; align-items:center; width:100%; padding:12px 14px; margin-bottom:8px; border-radius:12px; border:1px solid #ffffff1a;
     background:#ffffff0d; color:#fff; text-align:left; cursor:pointer; font:700 15px system-ui; }
+  .этажКн { padding:14px 0; border-radius:12px; border:1px solid #ffffff33; background:#2a2010; color:#f5d68a; font:900 22px Georgia; cursor:pointer; }
+  .этажКн:disabled { opacity:.3; cursor:default; } .этажКн.тут { outline:3px solid #fbbf24; }
+  .призрак-карточка { background:#ffffff0d; border:1px solid #ffffff22; border-radius:14px; padding:12px; } .призрак-карточка canvas { width:100%; border-radius:10px; background:#0b0a14; }
+  .призрак-карточка b { display:block; margin:6px 0 4px; font-size:16px; } .призрак-карточка small { color:#cbc5dc; line-height:1.45; display:block; }
+  .раздел-бака { grid-column:1/-1; font:800 13px system-ui; letter-spacing:2px; color:#e9b949; margin-top:6px; }
   .глава:hover { background:#ffffff1c; } .глава.закрыта { opacity:.4; cursor:default; }
   .глава .em { font-size:30px; } .глава small { display:block; font-weight:500; color:#b9b2cc; font-size:12.5px; margin-top:2px; }
   /* ── HUD ── */
@@ -102,7 +107,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#7c3aed">
-  <script>window.__APP_VER = "fef3d3e2e0";</script>
+  <script>window.__APP_VER = "1a4070bbb3";</script>
 </head>
 <body>
 <div class="screen" id="меню">
@@ -127,6 +132,14 @@
 <div class="слой hidden" id="итог"><div class="окно"><h2 id="итогЗаг">…</h2><img id="итогКартина" alt="" style="display:none;width:min(260px,60vw);margin:0 auto 12px;border-radius:6px">
   <p id="итогТекст"></p><div class="ряд"><button class="btn" id="итогСнова">🔁 Ещё раз</button><button class="btn" id="итогДальше">▶ Дальше</button><button class="btn" id="итогМеню">🏠 Меню</button></div></div></div>
 
+<div class="слой hidden" id="лифтПанель"><div class="окно" style="width:min(460px,94vw)"><h2>🛗 Куда едем?</h2>
+  <p>Кнопки этажей растащили призраки. Работают только те, что ты вернул.</p>
+  <div id="этажи" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px"></div>
+  <div class="ряд"><button class="btn" id="лифтНазад">↩ Выйти</button></div></div></div>
+<div class="слой hidden" id="бакОкно"><div class="окно" style="width:min(820px,96vw)"><h2>🫙 Бак для призраков</h2>
+  <p id="бакТекст">Здесь живут все, кого ты поймал. Смотри, как они выглядят, и узнавай про них.</p>
+  <div id="бакСписок" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px"></div>
+  <div class="ряд"><button class="btn" id="бакНазад">↩ Закрыть</button></div></div></div>
 <div id="hud">
   <div class="card" id="место">🏨 5-й этаж</div>
   <div class="card" id="задача"></div>
@@ -481,7 +494,6 @@ function построитьЭтаж() {
   дверь(-30, -3, 'x', 'БЕЛЬЁ', true).сообщ = '🔒 Бельевая заперта';
   const д504 = дверь(16, -3, 'x', '504', true); д504.сообщ = '🚪 «Не беспокоить». Тут никого.';
   лифт(29, -3);
-  дело(30.15, -2.5, 1.5, '🛗 Вызвать лифт', null, () => { Snd.тон(300, 0.15, 'square', 0.04); big('🛗 Кнопка не горит…\nЛифт не едет', 1.6, '#cbd5e1'); });
   мусоропровод();
 }
 function кадка(x, z) {
@@ -554,35 +566,46 @@ function номер_(cx, номер) {
     const тв = сетка(new THREE.PlaneGeometry(1.5, 0.38), new THREE.MeshStandardMaterial({ map:твТ, emissive:0xffcf80, emissiveMap:твТ, emissiveIntensity:0.5 }), cx, 2.55, z0 - 0.08); тв.rotation.y = Math.PI; }
 }
 /* 🛗 ЛИФТ: латунные двери, табло этажа, кнопка. Едет — двери разъезжаются */
-function лифт(x, z) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+const ЛИФТЫ = [];
+/* s = 1 — кабина «на юг» (−z, как на 5-м этаже), s = −1 — «на север» (в лобби) */
+function лифт(x, z, зн, s) {
+  зн = зн || 'этаж'; s = s || 1;
+  const g = new THREE.Group(); g.position.set(x, 0, z); if (s < 0) g.rotation.y = Math.PI; scene.add(g);
   const каб = new THREE.Group(); каб.position.set(0, 0, -2.2); g.add(каб);
   const кабТ = холст(256, 256, (gg, w, h) => { gg.fillStyle = '#4b2c16'; gg.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 64) { gg.fillStyle = '#6a4024'; gg.fillRect(x + 6, 6, 52, h - 12); } });
   for (const [w, h, x2, y, z2, ry] of [[2, 2.6, 0, 1.3, -1, 0], [2, 2.6, -1, 1.3, 0, Math.PI/2], [2, 2.6, 1, 1.3, 0, -Math.PI/2]]) { const п = сетка(new THREE.PlaneGeometry(w, h), мат.карта(кабТ, 0.6), x2, y, z2, каб); п.rotation.y = ry; }
   сетка(new THREE.PlaneGeometry(2, 2), мат.пластик(0x2a2420, 0.7), 0, 0.01, 0, каб).rotation.x = -Math.PI/2;
   const свет = сетка(new THREE.PlaneGeometry(1.4, 1.4), мат.светит(0xfff4d8, 1.2), 0, 2.58, 0, каб); свет.rotation.x = Math.PI/2;
-  кирпич(x - 1, x + 1, z - 3.3, z - 1.1, -1, 0, 'лифт'); кирпич(x - 1.1, x - 1, z - 3.3, z, 0, 3, 'лифт'); кирпич(x + 1, x + 1.1, z - 3.3, z, 0, 3, 'лифт'); кирпич(x - 1, x + 1, z - 3.3, z - 3.2, 0, 3, 'лифт');
+  // панель с кнопками этажей в кабине
+  const пан = new THREE.Group(); пан.position.set(0.97, 1.3, -0.3); пан.rotation.y = -Math.PI/2; каб.add(пан);
+  сетка(скругл(0.3, 0.7, 0.03, 0.02), мат.латунь(0.3), 0, 0, 0, пан);
+  for (let i = 0; i < 12; i++) сетка(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 12), мат.светит(0xfff0b0, i < 2 ? 0.8 : 0.1), -0.07 + (i % 2)*0.14, 0.28 - Math.floor(i/2)*0.1, 0.02, пан).rotation.x = Math.PI/2;
+  const к = (x0, x1, z0, z1, y0, y1, имя) => кирпич(x + x0, x + x1, z + s*z0, z + s*z1, y0, y1, имя);
+  к(-1, 1, -3.3, -1.1, -1, 0, 'лифт'); к(-1.1, -1, -3.3, 0, 0, 3, 'лифт'); к(1, 1.1, -3.3, 0, 0, 3, 'лифт'); к(-1, 1, -3.3, -3.2, 0, 3, 'лифт');
   const дв = [];
-  for (const s of [-1, 1]) { const д = сетка(скругл(0.8, 2.3, 0.05, 0.01), мат.латунь(0.25), s*0.4, 1.15, -0.02, g); дв.push(д); }
-  const дКирпич = кирпич(x - 0.8, x + 0.8, z - 0.08, z + 0.02, 0, 2.3, 'двери лифта');
+  for (const sd of [-1, 1]) { const д = сетка(скругл(0.8, 2.3, 0.05, 0.01), мат.латунь(0.25), sd*0.4, 1.15, -0.02, g); дв.push(д); }
+  const дКирпич = к(-0.8, 0.8, -0.08, 0.02, 0, 2.3, 'двери лифта');
   for (const [w, h, x2, y] of [[0.14, 2.6, -0.88, 1.3], [0.14, 2.6, 0.88, 1.3], [1.9, 0.18, 0, 2.5]]) сетка(скругл(w, h, 0.14, 0.02), мат.латунь(0.3), x2, y, 0.03, g);
   const таблоC = document.createElement('canvas'); таблоC.width = 256; таблоC.height = 64; const таблоТ = new THREE.CanvasTexture(таблоC); таблоТ.colorSpace = THREE.SRGBColorSpace;
-  const табло = сетка(new THREE.PlaneGeometry(0.8, 0.2), new THREE.MeshBasicMaterial({ map:таблоТ }), 0, 2.78, 0.05, g);
+  сетка(new THREE.PlaneGeometry(0.8, 0.2), new THREE.MeshBasicMaterial({ map:таблоТ }), 0, 2.78, 0.05, g);
   const кн = сетка(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 18), мат.светит(0xfff0b0, 0.3), 1.15, 1.2, 0.04, g); кн.rotation.x = Math.PI/2;
   сетка(скругл(0.18, 0.32, 0.03, 0.02), мат.латунь(0.3), 1.15, 1.2, 0.02, g);
-  const Л = ЭТ.лифт = { g, дв, дКирпич, табло:таблоC, таблоТ, кн, этаж:1, едет:false, цель:1, откр:0, x, z, кабина:{ x, z:z - 2.2 }, лампа:лампа('этаж', x, 2.4, z - 2.2, 0xfff1d0, 3, 5) };
-  лифтТабло(1);
+  const Л = { g, дв, дКирпич, табло:таблоC, таблоТ, кн, этаж:зн === 'лобби' ? 1 : 5, едет:false, цель:1, откр:0, x, z, s, зн, кабина:{ x, z:z - s*2.2 },
+    лампа:лампа(зн, x, 2.4, z - s*2.2, 0xfff1d0, 3, 5) };
+  ЛИФТЫ.push(Л); if (зн === 'этаж') ЭТ.лифт = Л;
+  лифтТабло(Л.этаж, Л);
   return Л;
 }
-function лифтТабло(n) { const g = ЭТ.лифт.табло.getContext('2d'); g.fillStyle = '#120806'; g.fillRect(0, 0, 256, 64);
+function лифтТабло(n, Л) { Л = Л || ЭТ.лифт; const g = Л.табло.getContext('2d'); g.fillStyle = '#120806'; g.fillRect(0, 0, 256, 64);
   for (let i = 1; i <= 5; i++) { g.fillStyle = i === n ? '#ffb347' : '#4a2a14'; g.font = 'bold 40px Georgia'; g.textAlign = 'center'; g.fillText(String(i), 26 + (i - 1)*51, 47); }
-  ЭТ.лифт.таблоТ.needsUpdate = true; }
+  Л.таблоТ.needsUpdate = true; }
 function лифтТик(dt) {
-  const Л = ЭТ.лифт; if (!Л) return;
-  if (Л.едет) { Л.т = (Л.т || 0) + dt; if (Л.т > 1.4) { Л.т = 0; Л.этаж += Math.sign(Л.цель - Л.этаж); лифтТабло(Л.этаж); Snd.тон(220, 0.15, 'sine', 0.03);
-      if (Л.этаж === Л.цель) { Л.едет = false; Snd.дзынь(); Л.откр = 1; Л.приехал && Л.приехал(); } } }
-  const цель = Л.откр ? 0.78 : 0; Л.дв.forEach((д, i) => { const s = i ? 1 : -1; д.position.x += (s*(0.4 + цель) - д.position.x)*Math.min(1, dt*2.2); });
-  Л.дКирпич.y1 = Л.откр ? -49 : 2.3; Л.дКирпич.y0 = Л.откр ? -50 : 0;
+  for (const Л of ЛИФТЫ) {
+    if (Л.едет) { Л.т = (Л.т || 0) + dt; if (Л.т > 1.4) { Л.т = 0; Л.этаж += Math.sign(Л.цель - Л.этаж); лифтТабло(Л.этаж, Л); Snd.тон(220, 0.15, 'sine', 0.03);
+        if (Л.этаж === Л.цель) { Л.едет = false; Snd.дзынь(); Л.откр = 1; Л.приехал && Л.приехал(); } } }
+    const цель = Л.откр ? 0.78 : 0; Л.дв.forEach((д, i) => { const sd = i ? 1 : -1; д.position.x += (sd*(0.4 + цель) - д.position.x)*Math.min(1, dt*2.2); });
+    Л.дКирпич.y1 = Л.откр ? -49 : 2.3; Л.дКирпич.y0 = Л.откр ? -50 : 0;
+  }
 }
 /* 🗑 МУСОРОПРОВОД в западном торце: металлический люк с ручкой и надписью */
 function мусоропровод() {
@@ -600,7 +623,7 @@ function мусоропровод() {
 
 /* ═══════════ 🧱 ПОДВАЛ (x≈300): мусорная, коридор с трубами, котельная, камера хранения, лестница; ГАРАЖ ═══════════
    Мусорная x 292…304 · коридор x 304…334, z −2…2 · котельная север x 312…324, z 2…12 · камера хранения юг x 314…330, z −14…−2
-   · лестница наверх (обвалились нижние ступени — только прыжок) x 304…310, z −10…−2 · гараж x 334…360, z −12…12 */
+   · лестница наверх (ступеньки → площадка → большая дверь «↑ ЛОББИ») x 304…312, z −10…−2 · гараж x 334…360, z −12…12 */
 const ПОД = { рубильник:null, ворота:null, свет:[], запертоГараж:true, ступень:null };
 function пол_(x0, x1, z0, z1, т, повт, y) { const m = плоскость(x1 - x0, z1 - z0, т, повт, (x0 + x1)/2, y || 0, (z0 + z1)/2, -Math.PI/2, 0, 0.85); m.receiveShadow = true; кирпич(x0, x1, z0, z1, (y || 0) - 1, y || 0, 'пол'); return m; }
 function потолок_(x0, x1, z0, z1, h, т) { const m = сетка(new THREE.PlaneGeometry(x1 - x0, z1 - z0), т ? мат.карта(т, 0.95) : мат.пластик(0x3a3632, 0.95), (x0 + x1)/2, h, (z0 + z1)/2); m.rotation.x = Math.PI/2; m.castShadow = false; }
@@ -626,7 +649,7 @@ function построитьПодвал() {
   лампочка('подвал', X - 2, 3.1, 0, 5);
   // коридор с трубами
   пол_(X + 4, X + 34, -2, 2, бетонТ, [8, 1]); потолок_(X + 4, X + 34, -2, 2, 3.2);
-  стена('x', 2, X + 4, X + 34, 3.2, [[X + 18, 1.4, 2.3]], бетонТ, -1); стена('x', -2, X + 4, X + 34, 3.2, [[X + 7, 1.4, 2.3], [X + 22, 1.4, 2.3]], бетонТ, 1);
+  стена('x', 2, X + 4, X + 34, 3.2, [[X + 18, 1.4, 2.3]], бетонТ, -1); стена('x', -2, X + 4, X + 34, 3.2, [[X + 8, 2.6, 2.8], [X + 22, 1.4, 2.3]], бетонТ, 1);   // широкий проход к лестнице
   трубы(X + 4, X + 34, 1.6, 2.9, 3);
   for (const x of [X + 9, X + 18, X + 27]) ПОД.свет.push(лампочка('подвал', x, 2.9, 0, 6));
   // котельная (север): котёл, манометры, РУБИЛЬНИК
@@ -660,13 +683,21 @@ function построитьПодвал() {
   сетка(new THREE.PlaneGeometry(3, 0.75), new THREE.MeshStandardMaterial({ map:стойкаТ, emissive:0x553311, emissiveIntensity:0.3 }), X + 22, 2.6, -13.92);
   ПОД.арена = { x0:X + 15, x1:X + 31, z0:-13, z1:-3 };
   for (const [x, z] of [[X + 18, -6], [X + 26, -9]]) ПОД.свет.push(лампочка('подвал', x, 3.3, z, 7));
-  // 🪜 лестница наверх: нижние ступени обвалились — пролёт выше роста. Наверх только 🦘 прыжком Ракеты
+  // 🪜 лестница наверх (Марк 11.10: «просто большая дверь, а там просто идти вверх по лестнице»):
+  // девять ступенек от входа к площадке, на площадке — большая двустворчатая дверь «↑ ЛОББИ»
   пол_(X + 4, X + 12, -10, -2, бетонТ, [2, 2]); потолок_(X + 4, X + 12, -10, -2, 5);
   стена('z', X + 4, -10, -2, 5, [], бетонТ, 1); стена('z', X + 12, -10, -2, 5, [], бетонТ, -1); стена('x', -10, X + 4, X + 12, 5, [], бетонТ, 1);
-  сетка(new THREE.BoxGeometry(4, 1.8, 3), мат.карта(бетонТ, 0.9), X + 8, 0.9, -8.4);
-  for (let i = 0; i < 3; i++) сетка(new THREE.BoxGeometry(2.6, 0.2, 0.4), мат.карта(бетонТ, 0.9), X + 8 + rnd(-0.6, 0.6), 0.1 + i*0.05, -6.2 + i*0.3).rotation.set(rnd(-0.3, 0.3), rnd(-0.4, 0.4), rnd(-0.3, 0.3));   // обломки ступеней кирпич(X + 6, X + 10, -9.9, -6.9, 0, 1.8, 'площадка');
-  for (let i = 0; i < 5; i++) { const б = сетка(new THREE.DodecahedronGeometry(rnd(0.2, 0.4)), мат.карта(бетонТ, 0.9), X + rnd(6.5, 9.5), 0.2, rnd(-6.4, -5)); б.rotation.set(rnd(0, 3), rnd(0, 3), 0); }
-  const дверьЛ = дверь(X + 8, -10, 'x', '↑ 1', true); дверьЛ.g.position.y = 1.8; дверьЛ.к.y0 = 1.8; дверьЛ.к.y1 = 4; ПОД.дверьНаверх = дверьЛ;
+  const ступМ = мат.карта(бетонТ, 0.9), кромМ = мат.металл(0x8a7a5a, 0.5);
+  for (let i = 0; i < 9; i++) { const верх = 0.2*(i + 1), z1 = -3.3 - i*0.42, z0 = z1 - 0.42;
+    сетка(new THREE.BoxGeometry(4, верх, 0.42), ступМ, X + 8, верх/2, (z0 + z1)/2);
+    сетка(new THREE.BoxGeometry(4, 0.03, 0.05), кромМ, X + 8, верх + 0.01, z1 - 0.03);
+    кирпич(X + 6, X + 10, z0, z1, 0, верх, 'ступенька'); }
+  сетка(new THREE.BoxGeometry(4, 1.8, 2.82), ступМ, X + 8, 0.9, -8.49); кирпич(X + 6, X + 10, -9.9, -7.08, 0, 1.8, 'площадка');
+  for (const sx of [-1, 1]) { const пер = new THREE.CatmullRomCurve3([[X + 8 + sx*2, 1.0, -3.3], [X + 8 + sx*2, 2.8, -7.1], [X + 8 + sx*2, 2.8, -9.8]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+    сетка(new THREE.TubeGeometry(пер, 30, 0.04, 8), мат.металл(0xb8bec6, 0.3)); кирпич(X + 8 + sx*2 - 0.06, X + 8 + sx*2 + 0.06, -9.9, -3.3, 0, 3, 'перила'); }
+  const дверьЛ = дверь(X + 8, -10, 'x', '↑ ЛОББИ', true); дверьЛ.g.position.y = 1.8; дверьЛ.g.scale.set(1.5, 1.25, 1); дверьЛ.к.y0 = 1.8; дверьЛ.к.y1 = 4.6; ПОД.дверьНаверх = дверьЛ;
+  const стрТ = холст(512, 128, (g, w, h) => { g.fillStyle = '#15803d'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = 'bold 64px system-ui'; g.textAlign = 'center'; g.fillText('↑ ЛОББИ · 1 ЭТАЖ', w/2, 86); });
+  сетка(new THREE.PlaneGeometry(2, 0.5), new THREE.MeshStandardMaterial({ map:стрТ, emissive:0x22c55e, emissiveMap:стрТ, emissiveIntensity:0.8 }), X + 8, 4.75, -9.92);
   ПОД.свет.push(лампочка('подвал', X + 8, 4.6, -6, 5));
   // ворота в гараж (рольставня, без тока не поднять)
   const рол = new THREE.Group(); рол.position.set(X + 34, 0, 0); scene.add(рол);
@@ -802,7 +833,8 @@ function построитьЛобби() {
   const обЛ = холст(512, 512, (g, w, h) => { g.fillStyle = '#5a1a24'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(214,170,90,.35)'; g.lineWidth = 2;
     for (let y = 0; y < h; y += 64) for (let x = 0; x < w; x += 64) { g.beginPath(); g.moveTo(x + 32, y + 4); g.lineTo(x + 60, y + 32); g.lineTo(x + 32, y + 60); g.lineTo(x + 4, y + 32); g.closePath(); g.stroke(); } });
   стена('x', 2.05, X + 2, X + 28, 6.5, [[X + 14, 2.2, 2.6]], обЛ, 1);
-  стена('x', 26, X + 2, X + 28, 6.5, [], обЛ, -1); стена('z', X + 2, 2, 26, 6.5, [], обЛ, 1); стена('z', X + 28, 2, 26, 6.5, [[14, 3, 3.4]], обЛ, -1);
+  стена('x', 26, X + 2, X + 28, 6.5, [[X + 24, 1.6, 2.4]], обЛ, -1);
+  лифт(X + 24, 26, 'лобби', -1); стена('z', X + 2, 2, 26, 6.5, [], обЛ, 1); стена('z', X + 28, 2, 26, 6.5, [[14, 3, 3.4]], обЛ, -1);
   // колонны
   for (const [x, z] of [[X + 8, 8], [X + 22, 8], [X + 8, 20], [X + 22, 20]]) { сетка(new THREE.CylinderGeometry(0.42, 0.48, 6.4, 24), мат.пластик(0xe8e0d0, 0.35), x, 3.2, z);
     for (const y of [0.2, 6.3]) сетка(скругл(1.1, 0.35, 1.1, 0.05), латуньМ, x, y, z); кирпич(x - 0.48, x + 0.48, z - 0.48, z + 0.48, 0, 6.5, 'колонна'); }
@@ -1154,7 +1186,7 @@ function пыхиТик(dt) { for (const p of ПЫХИ) { if (!p.жив) continu
 const ПРИЗРАКИ = [];
 const ВИДЫ = { тихоня:{ имя:'👻 Тихоня', цвет:0x3b82f6, hp:70 }, стюард:{ имя:'🧳 СТЮАРД', цвет:0xff6b6b, hp:320 } };
 function новыйПризрак(вид, x, y, z, о) {
-  const инфо = ВИДЫ[вид]; const g = вид === 'стюард' ? стюардМодель() : призракМодель(инфо.цвет, { руки:true, ...(о || {}) }); g.position.set(x, y, z); scene.add(g);
+  const инфо = ВИДЫ[вид]; const g = вид === 'стюард' ? стюардМодель() : вид === 'уборщица' ? уборщицаМодель() : призракМодель(инфо.цвет, { руки:true, ...(о || {}) }); g.position.set(x, y, z); scene.add(g);
   const п = { вид, имя:инфо.имя, g, x, y, z, hp:инфо.hp, max:инфо.hp, оглушён:0, дом:{ x, z, y }, t:rnd(0, 9), удар:rnd(1, 3), жив:true, ловят:0, ...(о || {}) };
   const зв = new THREE.Group(); for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), мат.светит(0xfde047, 2)); зв.add(s); } зв.visible = false; g.add(зв); п.звёзды = зв;
   ПРИЗРАКИ.push(п); return п;
@@ -1169,14 +1201,15 @@ function призракиТик(dt) {
       п.ловят += dt*1.8; const с = РУКИ.сопло.getWorldPosition(new THREE.Vector3());
       п.x += (с.x - п.x)*Math.min(1, dt*6); п.y += (с.y - 0.6 - п.y)*Math.min(1, dt*6); п.z += (с.z - п.z)*Math.min(1, dt*6);
       п.g.scale.setScalar(Math.max(0.02, 1 - п.ловят)*(п.масштаб || 1)); п.g.position.set(п.x, п.y, п.z); п.g.rotation.y += dt*14;
-      if (п.ловят >= 1) { п.жив = false; scene.remove(п.g); Snd.поймал(); big('🌀 ПОЙМАН: ' + п.имя.replace(/^\S+ /, ''), 1.6, '#a7f3d0'); сюжет && сюжет.поймал && сюжет.поймал(п); }
+      if (п.ловят >= 1) { п.жив = false; scene.remove(п.g); Snd.поймал(); запомнитьПойманного(п.вид); big('🌀 ПОЙМАН: ' + п.имя.replace(/^\S+ /, ''), 1.6, '#a7f3d0'); сюжет && сюжет.поймал && сюжет.поймал(п); }
       continue; }
-    if (п.оглушён > 0) { п.оглушён -= dt; п.звёзды.visible = true; п.звёзды.children.forEach((s, i) => { const a = time*5 + i*2.1; s.position.set(Math.cos(a)*0.45, (п.вид === 'стюард' ? 2.35 : 1.35), Math.sin(a)*0.45); });
-      п.y += ((п.вид === 'стюард' ? 0.2 : 0.5) - п.y)*Math.min(1, dt*3); }
+    if (п.оглушён > 0) { п.оглушён -= dt; п.звёзды.visible = true; п.звёзды.children.forEach((s, i) => { const a = time*5 + i*2.1; s.position.set(Math.cos(a)*0.45, (п.вид === 'тихоня' ? 1.35 : 2.35), Math.sin(a)*0.45); });
+      п.y += ((п.вид === 'тихоня' ? 0.5 : 0.2) - п.y)*Math.min(1, dt*3); }
     else п.звёзды.visible = false;
     const dx = И.x - п.x, dz = И.z - п.z, d = Math.hypot(dx, dz) || 0.01;
     if (п.вид === 'тихоня') тихоняИИ(п, dt, dx, dz, d);
     else if (п.вид === 'стюард') стюардИИ(п, dt, dx, dz, d);
+    else if (п.вид === 'уборщица') уборщицаИИ(п, dt, dx, dz, d);
     п.g.position.set(п.x, п.y + Math.sin(п.t*2.2)*0.08, п.z);
     if (п.оглушён <= 0) п.g.rotation.y = Math.atan2(dx, dz); else п.g.rotation.y += dt*3;
     const т = п.g.userData.тело; if (т) { т.scale.set(1 + (п.тянут || 0)*0.15, 1 - (п.тянут || 0)*0.08, 1 + (п.тянут || 0)*0.35); }
@@ -1251,7 +1284,7 @@ function лучТик(dt) {
   camera.getWorldPosition(_к); camera.getWorldDirection(_н);
   if (режим === 'всас') {
     let лучш = null, лд = 1e9;
-    for (const п of ПРИЗРАКИ) { if (!п.жив || п.ловят) continue; const v = new THREE.Vector3(п.x - _к.x, п.y + (п.вид === 'стюард' ? 1.1 : 0.6) - _к.y, п.z - _к.z), dd = v.length();
+    for (const п of ПРИЗРАКИ) { if (!п.жив || п.ловят) continue; const v = new THREE.Vector3(п.x - _к.x, п.y + (п.вид === 'тихоня' ? 0.6 : 1.1) - _к.y, п.z - _к.z), dd = v.length();
       if (dd > 9.5) continue; const cos = v.dot(_н)/dd; if (cos < 0.93) continue;
       if (преграда(_к.x, _к.y, _к.z, п.x, п.y + 0.6, п.z)) continue; if (dd < лд) { лд = dd; лучш = п; } }
     if (лучш) { const п = лучш; цельЛуча = п;
@@ -1335,7 +1368,7 @@ function подготовитьМир(id) {
   for (const д of ДВЕРИ) { if (!д.закрыта) { д.открыта = false; д.к.y0 = 0; д.к.y1 = 2.2; } }
   for (const з of ЗЕРКАЛА) { з.свободен = false; з.свобода = 0; }
   for (const [н2, ном] of Object.entries(ЭТ.номера)) ном.проверен = н >= 1 && !!ном.друг;
-  ЭТ.лифт.откр = 0; ЭТ.лифт.этаж = н >= 1 ? 5 : 1; ЭТ.лифт.едет = false; лифтТабло(ЭТ.лифт.этаж);
+  ЛИФТЫ.forEach(Л => { Л.откр = 0; Л.едет = false; Л.приехал = null; Л.этаж = Л.зн === 'лобби' ? 1 : 5; }); ЭТ.лифт.этаж = н >= 1 ? 5 : 1; ЛИФТЫ.forEach(Л => лифтТабло(Л.этаж, Л));
   ЭТ.люк.петля.rotation.x = 0; мерцание(1);
   if (зам) зам.visible = false; if (морф) морф.g.visible = false;
   // подвал
@@ -1344,7 +1377,7 @@ function подготовитьМир(id) {
   ПОД.ворота.цель = н >= 3 ? 1 : 0; ПОД.ворота.подъём = ПОД.ворота.цель;
   ГАР.ракета.g.visible = н < 3 || id === 'подвал'; ГАР.прожектор.intensity = ГАР.ракета.g.visible ? 14 : 0;
   ГАР.коробки.forEach((к, i) => { к.x = 338 + (i % 4)*1.1; к.z = -10.5 + Math.floor(i/4)*1.2; к.vx = к.vz = 0; к.m.position.set(к.x, к.y + к.s*0.4, к.z); Object.assign(к.к, { x0:к.x - к.s/2, x1:к.x + к.s/2, z0:к.z - к.s/2, z1:к.z + к.s/2 }); });
-  ПОД.дверьНаверх.закрыта = true; ПОД.дверьНаверх.сообщ = '🪜 Наверх, на 1-й этаж'; ПОД.дверьНаверх.открыта = false;
+  ПОД.дверьНаверх.закрыта = true; ПОД.дверьНаверх.сообщ = '🚪 ✋ — наверх, в лобби'; ПОД.дверьНаверх.открыта = false;
   ЛАБ.к.forEach(к => { к.y0 = н >= 6 ? к.оy0 : -50; к.y1 = н >= 6 ? к.оy1 : -49; });
   // лобби: баррикада, двери, спектр, профессор
   ЛОБ.баррикада.forEach(в => { в.g.visible = н >= 4; if (н >= 4) { в.g.position.set(в.цель.x, в.цель.y, в.цель.z); в.g.rotation.y = в.цель.r; } });
@@ -1353,6 +1386,8 @@ function подготовитьМир(id) {
   ЛОБ.бюро.спектр.visible = н < 5; ЛОБ.зеркалоП.свободен = н >= 5; ЛОБ.зеркалоП.свобода = 0; рисоватьЗеркало(ЛОБ.зеркалоП, 0);
   проф.visible = false; лаб.visible = н >= 6; ЛАБ.свет.intensity = н >= 6 ? 30 : 0;
   чемоданыАрены(); кнопкиЛифта.forEach(к => к.visible = false);
+  if (БЕЛ.чемодан) { БЕЛ.чемодан.visible = false; БЕЛ.следы.forEach(с => с.material.opacity = 0); const дБ = ДВЕРИ.find(д => д.номер === 'БЕЛЬЁ'); дБ.закрыта = true; дБ.открыта = false; дБ.к.y0 = 0; дБ.к.y1 = 2.2; }
+  $('лифтПанель').classList.add('hidden'); $('бакОкно').classList.add('hidden');
   РУКИ.правая.visible = ЕСТЬ.ракета; РУКИ.спектр.visible = ЕСТЬ.спектр; РУКИ.телефон.visible = !ЕСТЬ.спектр;
   document.body.classList.toggle('ракета', ЕСТЬ.ракета); document.body.classList.toggle('спектр', ЕСТЬ.спектр);
   сюжет = null;
@@ -1363,7 +1398,7 @@ function начатьЭтап(id, опц) {
   document.body.classList.add('play'); state = 'play'; пауза = false;
   наВесьЭкран();
   подготовитьМир(id);
-  ({ ночь:этапНочь, морф:этапМорф, подвал:этапПодвал, баррикада:этапБаррикада, спектр:этапСпектр, стюард:этапСтюард, лаб:этапЛаб })[id](опц || {});
+  ({ ночь:этапНочь, морф:этапМорф, подвал:этапПодвал, баррикада:этапБаррикада, спектр:этапСпектр, стюард:этапСтюард, лаб:этапЛаб, бак:этапБак, уборщица:этапУборщица })[id](опц || {});
   обновитьКамеру(0);
   if (!тач) холстИгры.requestPointerLock && холстИгры.requestPointerLock();
 }
@@ -1475,7 +1510,7 @@ function этапПодвал(опц) {
       if (шаг === 'гараж' && И.x > 334) { шаг = 'ракета'; задача('🚀 Что это светится на подставке?'); Snd.дзынь(); }
       if (шаг === 'ракета') ГАР.ракета.g.rotation.y += dt*0.8;
       if (шаг === 'завал' && ГАР.коробки.every(к => к.x < 333 || к.x > 336.6 || Math.abs(к.z) - к.s/2 > 0.45)) { шаг = 'лестница'; Snd.победа(); big('💨 ПУТЬ СВОБОДЕН!', 1.6, '#a7f3d0');
-        задача('🪜 Лестница наверх — в комнате слева от мусорной. Нижние ступени обвалились: 🦘 ПРЫЖОК (Пробел)!'); }
+        задача('🪜 Лестница наверх — в комнате слева от мусорной. Поднимись по ступенькам к большой двери «↑ ЛОББИ»'); }
       if (шаг === 'лестница' && И.y > 1.6 && И.z < -6.5 && И.x > 305 && И.x < 311) { шаг = 'дверь'; задача('🚪 ✋ Дверь наверх, на 1-й этаж'); }
     },
     действие() {
@@ -1491,7 +1526,7 @@ function этапПодвал(опц) {
         задача('🚀 ЛКМ — всасывать · ПКМ — выдувать · Q — ⚡вспышка · Пробел — 🦘прыжок'); return true; }
       if ((шаг === 'дверь' || шаг === 'лестница') && И.y > 1.5 && Math.hypot(И.x - 308, И.z + 10) < 2.5) { шаг = 'наверх'; Snd.дверь();
         затемнить(() => { дошёлДо('баррикада'); подготовитьМир('баррикада'); этапId = 'баррикада'; этапБаррикада({ сразу:true }); }, 300); return true; }
-      if (Math.hypot(И.x - 308, И.z + 10) < 2.5 && И.y < 1.5) { big('🪜 Высоко! Ступени обвалились…' + (ЕСТЬ.ракета ? '\n🦘 Прыгай (Пробел)!' : ''), 1.6, '#cbd5e1'); return true; }
+
     } };
 }
 function завалГаража() {                               // полтергейст! коробки съезжают к воротам
@@ -1683,8 +1718,232 @@ function чемоданыАрены() {
 }
 
 
+/* ═══════════ 🏨 ГЛАВА 2 (Марк 10.10): бак профессора, лифт с кнопками, 5-й этаж и призрак-УБОРЩИЦА ═══════════ */
+ЭТАПЫ.push(
+  { id:'бак',      глава:2, em:'🫙', имя:'Бак и лифт',          кратко:'Выгрузи пойманных призраков в бак профессора. Лифт сломан — но кнопки «1» и «5» у тебя!' },
+  { id:'уборщица', глава:2, em:'🧹', имя:'БОСС: Уборщица',      кратко:'Пятый этаж. Спектр показывает невидимые следы. Уборщица утащила чемодан профессора и бегает по номерам!', босс:true },
+);
+ЭТАПЫ.forEach(э => { э.глава = э.глава || 1; });
+
+/* 🫙 кого поймал — хранится навсегда, бак показывает */
+const КЛЮЧ_БАК = 'полтергейст_бак';
+const ПОЙМАНО = (() => { try { return JSON.parse(localStorage.getItem(КЛЮЧ_БАК) || '{}'); } catch (_) { return {}; } })();
+const ВБаке = (() => { try { return JSON.parse(localStorage.getItem(КЛЮЧ_БАК + '_выгружено') || '{}'); } catch (_) { return {}; } })();
+function запомнитьПойманного(вид) { ПОЙМАНО[вид] = (ПОЙМАНО[вид] || 0) + 1; try { localStorage.setItem(КЛЮЧ_БАК, JSON.stringify(ПОЙМАНО)); } catch (_) {} }
+const ИНФО_ПРИЗРАКОВ = {
+  тихоня:{ имя:'Тихоня', цвет:0x3b82f6, босс:false, текст:'Синий, тихий и работящий. Сам не шумит, но таскает мебель и строит баррикады, чтобы никто не сбежал. Пугается вспышки.' },
+  стюард:{ имя:'Стюард', цвет:0xff6b6b, босс:true, текст:'Призрак-носильщик в красной форме и шапочке-таблетке. Прячется за чемоданами, как за щитом, и швыряется ими. Уронил кнопки лифта «1» и «5».' },
+  уборщица:{ имя:'Уборщица', цвет:0xc4b5fd, босс:true, текст:'Горничная в чёрном платье, белом фартуке и наколке. Что нашла — то её. Бегает по номерам и машет шваброй. Утащила чемодан профессора.' },
+};
+/* портреты призраков для бака — рисуем их 3D-модели отдельной маленькой камерой */
+let фотоРендер = null; const портреты = {};
+function портрет(вид) {
+  if (портреты[вид]) return портреты[вид];
+  if (!фотоРендер) { фотоРендер = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true, alpha:true }); фотоРендер.setSize(256, 200); фотоРендер.outputColorSpace = THREE.SRGBColorSpace;
+    фотоРендер.toneMapping = THREE.ACESFilmicToneMapping; }
+  const сц = new THREE.Scene(); сц.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.4)); const св = new THREE.DirectionalLight(0xffffff, 1.6); св.position.set(2, 4, 5); сц.add(св);
+  const м = вид === 'стюард' ? стюардМодель() : вид === 'уборщица' ? уборщицаМодель() : призракМодель(ИНФО_ПРИЗРАКОВ[вид].цвет, { руки:true }); сц.add(м);
+  const выс = вид === 'тихоня' ? 1.3 : 2.4, к = new THREE.PerspectiveCamera(40, 256/200, 0.1, 50); к.position.set(0, выс*0.55, выс*1.9); к.lookAt(0, выс*0.48, 0);
+  фотоРендер.render(сц, к); return портреты[вид] = фотоРендер.domElement.toDataURL();
+}
+function открытьБак(выгрузка) {
+  const сп = $('бакСписок'); сп.innerHTML = '';
+  if (выгрузка) { let n = 0; for (const [в, к] of Object.entries(ПОЙМАНО)) { n += к - (ВБаке[в] || 0); ВБаке[в] = к; }
+    try { localStorage.setItem(КЛЮЧ_БАК + '_выгружено', JSON.stringify(ВБаке)); } catch (_) {}
+    $('бакТекст').textContent = n ? `Выгружено призраков: ${n}! Ракета-3000 снова пустая. Смотри, кто теперь живёт в баке:` : 'Ракета пустая — всех уже выгрузил. Вот кто живёт в баке:'; }
+  for (const [отдел, босс] of [['ПРИЗРАКИ', false], ['👑 ОТДЕЛ БОССОВ', true]]) {
+    const з = document.createElement('div'); з.className = 'раздел-бака'; з.textContent = отдел; сп.appendChild(з);
+    for (const [вид, и] of Object.entries(ИНФО_ПРИЗРАКОВ)) { if (и.босс !== босс) continue; const есть = (ВБаке[вид] || 0) > 0;
+      const к = document.createElement('div'); к.className = 'призрак-карточка';
+      к.innerHTML = есть ? `<img src="${портрет(вид)}" style="width:100%;border-radius:10px;background:#0b0a14"><b>${и.имя} ${босс ? '' : '× ' + ВБаке[вид]}</b><small>${и.текст}</small>`
+        : `<div style="height:120px;display:flex;align-items:center;justify-content:center;font-size:54px;opacity:.3">❔</div><b>???</b><small>Ещё не пойман.</small>`;
+      сп.appendChild(к); } }
+  $('бакОкно').classList.remove('hidden'); state = 'окно'; document.exitPointerLock && document.exitPointerLock(); Snd.пылесос(null);
+}
+$('бакНазад').onclick = () => { $('бакОкно').classList.add('hidden'); state = 'play'; if (!тач) холстИгры.requestPointerLock && холстИгры.requestPointerLock(); сюжет && сюжет.бакЗакрыт && сюжет.бакЗакрыт(); };
+дело(352, 8, 3.2, '🫙 Выгрузить призраков в бак', () => лаб.visible && зона === 'подвал', () => { Snd.пылесос('выдув'); setTimeout(() => Snd.пылесос(null), 900);
+  ЛАБ.вихри.forEach(в => пых(в.getWorldPosition(new THREE.Vector3()).x, 2, в.getWorldPosition(new THREE.Vector3()).z, 0x93c5fd)); открытьБак(true); });
+
+/* ═══════════ 🛗 ЛИФТ: встал в кабину → ✋ → выбираешь этаж (только те, чьи кнопки вернул). Звук поездки ═══════════ */
+const ЭТАЖИ = { 1:{ зона:'лобби', лифт:() => ЛИФТЫ.find(Л => Л.зн === 'лобби') }, 5:{ зона:'этаж', лифт:() => ЭТ.лифт } };
+function кнопкиЕсть() { const к = new Set(); if (ДОШЁЛ.has('лаб')) { к.add(1); к.add(5); } if (ДОШЁЛ.has('жижа')) к.add(3); return к; }
+function вКабине() { return ЛИФТЫ.find(Л => Л.зн === зона && Math.abs(И.x - Л.кабина.x) < 0.95 && Math.abs(И.z - Л.кабина.z) < 1.0); }
+function делаЛифтов() { for (const Л0 of ЛИФТЫ) { const Л = Л0;
+  дело(Л.кабина.x, Л.кабина.z, 1.2, '🛗 Кнопки этажей', () => зона === Л.зн && state === 'play', () => лифтПанель(Л));
+  дело(Л.x + 1.15*Л.s, Л.z + 0.5*Л.s, 1.3, '🛗 Вызвать лифт', () => зона === Л.зн && !Л.откр && !(сюжет && сюжет.этап === 'морф'), () => {
+    if (!кнопкиЕсть().size) { big('🛗 Кнопка не горит…\nЛифт не едет', 1.6, '#cbd5e1'); return; } Л.откр = 1; Snd.дзынь(); }); } }
+function лифтПанель(Л) {
+  const есть = кнопкиЕсть(), бокс = $('этажи'); бокс.innerHTML = '';
+  for (let f = 17; f >= 1; f--) { const b = document.createElement('button'); b.className = 'этажКн' + (Л.этаж === f ? ' тут' : ''); b.textContent = f;
+    b.disabled = !есть.has(f) || !ЭТАЖИ[f]; if (!b.disabled) b.onclick = () => { $('лифтПанель').classList.add('hidden'); поехать(Л, f); }; бокс.appendChild(b); }
+  $('лифтПанель').classList.remove('hidden'); state = 'окно'; document.exitPointerLock && document.exitPointerLock(); Snd.тон(900, 0.05, 'square', 0.04);
+}
+$('лифтНазад').onclick = () => { $('лифтПанель').classList.add('hidden'); state = 'play'; if (!тач) холстИгры.requestPointerLock && холстИгры.requestPointerLock(); };
+function звукЛифта(сек) { if (!Snd.ctx) return; const c = Snd.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain(), ф = c.createBiquadFilter();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(48, t); o.frequency.linearRampToValueAtTime(62, t + 1); o.frequency.setValueAtTime(62, t + сек - 1); o.frequency.linearRampToValueAtTime(44, t + сек);
+  ф.type = 'lowpass'; ф.frequency.value = 260; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18, t + 0.6); g.gain.setValueAtTime(0.18, t + сек - 0.6); g.gain.linearRampToValueAtTime(0.0001, t + сек);
+  o.connect(ф); ф.connect(g); g.connect(Snd.общий); o.start(t); o.stop(t + сек + 0.1);
+  for (let k = 0; k < сек/0.9; k++) Snd.шумок(0.15, 0.02, 1800, 3, k*0.9 + 0.4); }
+function поехать(Л, f) {
+  if (Л.этаж === f) { state = 'play'; big('Ты уже на этом этаже', 1.2, '#cbd5e1'); return; }
+  state = 'play'; Л.откр = 0; Snd.дверь(); const сек = 1.2 + Math.abs(f - Л.этаж)*0.8;
+  setTimeout(() => { звукЛифта(сек); тряска = 0.03; let k = Л.этаж; const ш = setInterval(() => { k += Math.sign(f - k); лифтТабло(k, Л); Snd.тон(220, 0.12, 'sine', 0.03); if (k === f) clearInterval(ш); }, сек*1000/Math.abs(f - Л.этаж));
+    big('🛗 Едем на ' + f + '-й этаж…', сек, '#f5d68a'); }, 900);
+  setTimeout(() => { const куда = ЭТАЖИ[f], Л2 = куда.лифт(); Л2.этаж = f; лифтТабло(f, Л2);
+    затемнить(() => { войтиВЗону(куда.зона); встать(Л2.кабина.x, 0, Л2.кабина.z, Л2.s > 0 ? 0 : Math.PI); Л2.откр = 1; Snd.дзынь(); тряска = 0;
+      сюжет && сюжет.приехал && сюжет.приехал(f); }, 300); }, 900 + сек*1000);
+}
+/* 🪜 лестницы между подвалом и первым этажом работают всегда (если этап не решил иначе) */
+дело(308, -9.4, 2.2, '🚪 Наверх, на 1-й этаж', () => зона === 'подвал' && И.y > 1.5 && !(сюжет && сюжет.этап === 'подвал'), () => перейти('лобби', -300, 0, -2.6, Math.PI, '🛎 1-й этаж'), 1.8);
+дело(-302, -3.6, 1.8, '🚪 Вниз, в подвал', () => зона === 'лобби' && этапId !== 'баррикада', () => перейти('подвал', 308, 1.8, -8.6, 0, '🧱 Подвал'));
+
+/* ═══════════ 🧹 УБОРЩИЦА — горничная (Марк: «одета как горничная, с чёрной юбкой и всё так далее») ═══════════ */
+function уборщицаМодель() {
+  const g = new THREE.Group(), тело = new THREE.Group(); g.add(тело);
+  const цв = 0xc4b5fd;
+  const дух = свечение(new THREE.MeshStandardMaterial({ color:цв, transparent:true, opacity:0.5, emissive:цв, emissiveIntensity:1.0, roughness:0.35, depthWrite:false, side:THREE.DoubleSide }));
+  const хв = new THREE.Mesh(new THREE.LatheGeometry([[0, -0.15], [0.14, -0.05], [0.24, 0.2]].map(([a, b]) => new THREE.Vector2(a, b)), 24), дух); тело.add(хв);
+  const чёрн = new THREE.MeshStandardMaterial({ color:0x15151c, roughness:0.6, transparent:true, opacity:0.95 }), бел = мат.пластик(0xf8fafc, 0.7);
+  const юбка = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.9, 32, 1, true), чёрн); юбка.position.y = 0.6; юбка.material.side = THREE.DoubleSide; тело.add(юбка);
+  for (let i = 0; i < 16; i++) { const а = i/16*Math.PI*2, р = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), бел); р.position.set(Math.cos(а)*0.6, 0.17, Math.sin(а)*0.6); р.scale.y = 0.6; тело.add(р); }   // оборка подола
+  const торс = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.6, 24), чёрн); торс.position.y = 1.32; тело.add(торс);
+  const фартук = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.85), бел); фартук.position.set(0, 0.75, 0.45); фартук.rotation.x = -0.18; тело.add(фартук);
+  const нагр = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.3), бел); нагр.position.set(0, 1.35, 0.255); тело.add(нагр);
+  for (const sx of [-1, 1]) { const л = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.02, 6, 12), бел); л.position.set(sx*0.08, 1.08, -0.3); тело.add(л); }        // бант сзади
+  const ворот = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.04, 8, 20), бел); ворот.rotation.x = Math.PI/2; ворот.position.y = 1.62; тело.add(ворот);
+  for (const sx of [-1, 1]) { const п = new THREE.Group(); п.position.set(sx*0.32, 1.52, 0); тело.add(п);
+    const рук = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.38, 6, 10), чёрн); рук.position.y = -0.22; п.add(рук);
+    const кисть = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), дух); кисть.position.y = -0.46; п.add(кисть); п.rotation.set(-0.8, 0, sx*0.3); g.userData['рука' + sx] = п; }
+  const гол = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 18), дух); гол.position.y = 1.95; тело.add(гол);
+  const глМ = new THREE.MeshStandardMaterial({ color:0x080a10, roughness:0.15 });
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), глМ); e.position.set(sx*0.11, 1.98, 0.26); e.scale.set(1, 1.3, 0.6); тело.add(e);
+    const рес = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.015, 0.015), глМ); рес.position.set(sx*0.14, 2.06, 0.27); рес.rotation.z = -sx*0.4; тело.add(рес); }
+  const рот = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.015, 6, 12, Math.PI), глМ); рот.position.set(0, 1.85, 0.28); рот.rotation.z = Math.PI; тело.add(рот);
+  const пуч = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 10), new THREE.MeshStandardMaterial({ color:0x6b21a8, transparent:true, opacity:0.7 })); пуч.position.set(0, 2.1, -0.22); тело.add(пуч);
+  const нак = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.05, 6, 24, Math.PI), бел); нак.position.set(0, 2.15, 0.02); нак.rotation.x = -0.3; тело.add(нак);   // наколка
+  for (let i = 0; i < 7; i++) { const о = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), бел); const а = Math.PI*i/6; о.position.set(Math.cos(а)*0.22, 2.15 + Math.sin(а)*0.22, 0.05); тело.add(о); }
+  // 🧹 швабра в правой руке
+  const шв = new THREE.Group(); шв.position.set(0, -0.48, 0); g.userData['рука1'].add(шв);
+  const пал = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.7, 8), мат.карта(деревоТ('#a5712f', '#5a3a14'), 0.6)); пал.position.y = -0.3; шв.add(пал);
+  const тр = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.06, 0.32, 14, 1, true), мат.пластик(0xd8d0c0, 0.95)); тр.position.y = -1.25; тр.material.side = THREE.DoubleSide; шв.add(тр);
+  const L = new THREE.PointLight(цв, 3, 7); L.position.y = 1.4; g.add(L);
+  g.userData.тело = тело; g.userData.м = дух; g.userData.L = L; g.userData.швабра = шв;
+  тело.traverse(o => { if (o.isMesh) o.castShadow = false; });
+  return g;
+}
+ВИДЫ.уборщица = { имя:'🧹 УБОРЩИЦА', цвет:0xc4b5fd, hp:300 };
+/* 🧺 бельевая за дверью «БЕЛЬЁ»: полки с полотенцами, тележка, корзины. Здесь уборщица прячет чемодан */
+const БЕЛ = { чемодан:null, следы:[] };
+function построитьБельевую() {
+  const x0 = -36, x1 = -24, z0 = -11, z1 = -3;
+  пол_(x0, x1, z0, z1, плиткаТ, [3, 2]); потолок_(x0, x1, z0, z1, 3.1);
+  const ст = холст(256, 256, (g, w, h) => { g.fillStyle = '#d8d2c4'; g.fillRect(0, 0, w, h); шум(g, w, h, 1500, ['rgba(0,0,0,.05)'], 2); });
+  стена('x', z0, x0, x1, 3.1, [], ст, 1); стена('z', x0, z0, z1, 3.1, [], ст, 1); стена('z', x1, z0, z1, 3.1, [], ст, -1);
+  for (const [x, z] of [[x0 + 0.6, -7], [x1 - 0.6, -7]]) { стеллаж(x, z);
+    for (let y of [0.3, 1.1, 1.9]) for (let k = 0; k < 4; k++) сетка(скругл(0.5, 0.28, 0.6, 0.06), мат.пластик([0xf8fafc, 0xfde68a, 0xbfdbfe, 0xfbcfe8][(k + Math.round(y*3)) % 4], 0.9), x, y + 0.17, z - 1.1 + k*0.72); }
+  const тел = new THREE.Group(); тел.position.set(-30, 0, -9.5); scene.add(тел);
+  сетка(скругл(1.4, 0.7, 0.7, 0.05), мат.металл(0x9aa0a8, 0.4), 0, 0.75, 0, тел);
+  for (let i = 0; i < 4; i++) сетка(new THREE.SphereGeometry(0.3, 12, 8), мат.пластик(0xf8fafc, 0.9), -0.4 + i*0.27, 1.12, rnd(-0.1, 0.1), тел);
+  for (const sx of [-0.6, 0.6]) for (const sz of [-0.3, 0.3]) сетка(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 10), мат.резина(), sx, 0.06, sz, тел).rotation.x = Math.PI/2;
+  кирпич(-30.75, -29.25, -9.9, -9.1, 0, 1.15, 'тележка');
+  лампочка('этаж', -30, 2.9, -7, 6);
+  // чемодан профессора — старый, кожаный, в наклейках
+  const ч = new THREE.Group(); ч.position.set(-30, 0, -5.5); scene.add(ч); БЕЛ.чемодан = ч;
+  const кожа = мат.карта(холст(256, 256, (g, w, h) => { g.fillStyle = '#7a4a24'; g.fillRect(0, 0, w, h); шум(g, w, h, 2000, ['rgba(0,0,0,.12)', 'rgba(255,220,180,.06)'], 2);
+    for (const [x, y, ц, т] of [[40, 50, '#e9c46a', 'ВЕНА'], [150, 150, '#7dd3fc', 'ПРАГА'], [60, 190, '#fca5a5', 'Проф. П.']]) { g.fillStyle = ц; g.beginPath(); g.ellipse(x + 30, y, 44, 26, 0.2, 0, 7); g.fill(); g.fillStyle = '#2a1a05'; g.font = 'bold 18px Georgia'; g.fillText(т, x, y + 6); } }), 0.6);
+  сетка(скругл(0.9, 0.6, 0.38, 0.06), кожа, 0, 0.32, 0, ч);
+  for (const sx of [-1, 1]) сетка(скругл(0.05, 0.62, 0.4, 0.015), мат.латунь(0.3), sx*0.3, 0.32, 0, ч);
+  сетка(new THREE.TorusGeometry(0.1, 0.025, 6, 12, Math.PI), мат.латунь(0.3), 0, 0.64, 0, ч);
+  ч.visible = false;
+  // 👣 невидимые следы: видно только в свете Спектра — от лифта к бельевой, с заходом в 503-й
+  const пут = [[29, -1.6], [24, -1.0], [18, -0.6], [14, 2], [14, 5], [12, 7.5], [15, 9], [14, 5], [13, 1], [6, 0.5], [-4, 0.3], [-14, -0.4], [-22, -0.8], [-28, -1.6], [-30, -3.6], [-30, -5]];
+  const следМ = new THREE.MeshBasicMaterial({ color:0x86efac, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending });
+  const подошва = new THREE.Shape(); подошва.absellipse(0, 0, 0.07, 0.13, 0, Math.PI*2);
+  let прошлый = null, лев = 1;
+  for (let i = 1; i < пут.length; i++) { const [ax, az] = пут[i - 1], [bx, bz] = пут[i], д = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(д/0.7)), уг = Math.atan2(bx - ax, bz - az);
+    for (let k = 0; k < n; k++) { const t = k/n, x = ax + (bx - ax)*t + Math.cos(уг)*0.13*лев, z = az + (bz - az)*t - Math.sin(уг)*0.13*лев; лев = -лев;
+      const с = new THREE.Mesh(new THREE.ShapeGeometry(подошва), следМ.clone()); с.rotation.x = -Math.PI/2; с.rotation.z = -уг; с.position.set(x, 0.015, z); scene.add(с); БЕЛ.следы.push(с); } }
+}
+/* 🧹 поведение уборщицы: «бегать по номерам и ловить уборщицу, столько задерживать лучом, сколько сможешь» */
+const КОМНАТЫ_У = [[-18, 1.2, 9], [-2, 1.2, 9], [14, 1.2, 9], [30, 1.2, 9], [-30, 1.2, -7], [-8, 1.2, 0], [20, 1.2, 0]];
+function уборщицаИИ(п, dt, dx, dz, d) {
+  if (п.оглушён > 0) return;
+  п.y += (0.3 + Math.sin(п.t*2)*0.12 - п.y)*Math.min(1, dt*3);
+  if (!п.цель) п.цель = КОМНАТЫ_У[Math.floor(Math.random()*КОМНАТЫ_У.length)];
+  if (п.подЛучом > 0) { п.подЛучом -= dt; п.держат = (п.держат || 0) + dt;
+    if (п.держат > 3.4) { п.держат = 0; п.подЛучом = 0; телепортУборщицы(п); return; }
+    const s = п.бок || 1; п.x += -dz/d*s*1.6*dt - dx/d*1.2*dt; п.z += dx/d*s*1.6*dt - dz/d*1.2*dt; return; }
+  п.держат = Math.max(0, (п.держат || 0) - dt*2);
+  const cx = п.цель[0] - п.x, cz = п.цель[2] - п.z, cd = Math.hypot(cx, cz);
+  if (cd > 0.8) { const v = 4.6; п.x += cx/cd*Math.min(cd, v*dt); п.z += cz/cd*Math.min(cd, v*dt); }
+  else { п.метёт = (п.метёт || rnd(3, 5)) - dt; const шв = п.g.userData.швабра; if (шв) шв.rotation.z = Math.sin(п.t*6)*0.5;
+    if (п.метёт <= 0) { п.метёт = 0; п.цель = КОМНАТЫ_У.filter(q => q !== п.цель)[Math.floor(Math.random()*(КОМНАТЫ_У.length - 1))]; } }
+  if (d < 1.4 && (п.удар -= dt) <= 0) { п.удар = 2; урон(1, п); сказать('УБОРЩИЦА', ['Не топчите! Я только что помыла!', 'Брысь со своим пылесосом!', 'Шваброй его, шваброй!'][Math.floor(Math.random()*3)], 2.2); }
+}
+function телепортУборщицы(п) { for (let i = 0; i < 16; i++) пых(п.x + rnd(-0.6, 0.6), rnd(0.3, 2), п.z + rnd(-0.6, 0.6), 0xc4b5fd);
+  п.цель = КОМНАТЫ_У.filter(q => Math.hypot(q[0] - И.x, q[2] - И.z) > 9)[Math.floor(Math.random()*4)] || КОМНАТЫ_У[0];
+  п.x = п.цель[0] + rnd(-1, 1); п.z = п.цель[2] + rnd(-1, 1); Snd.стон(); big('💨 ВЫРВАЛАСЬ!\nищи по номерам', 1.4, '#c4b5fd');
+  сказать('УБОРЩИЦА', ['Хи-хи! Поймай-ка меня теперь!', 'Чемоданчик мой — не отдам!', 'Я в другом номере! Угадай, в каком!'][Math.floor(Math.random()*3)], 2.4); }
+
+/* ═══════════ 🫙 ЭТАП 8: БАК И ЛИФТ ═══════════ */
+function этапБак() {
+  войтиВЗону('подвал'); встать(346, 0, 4, -Math.PI/2); фонарь(false); лаб.visible = true; ЛАБ.свет.intensity = 30;
+  проф.visible = true; проф.position.set(352, 0, 5.5);
+  задача('🫙 Выгрузи пойманных призраков в бак профессора (✋ у бака)');
+  сказать('ПРОФЕССОР', 'Доброе утро, охотник! Ракета-3000 полна призраков — выгрузи их в бак. Посмотрим, кого ты наловил.', 6);
+  let шаг = 'бак';
+  сюжет = { этап:'бак',
+    тик(dt) { проф.rotation.y = Math.atan2(И.x - проф.position.x, И.z - проф.position.z); ЛАБ.бак.rotation.y += dt*0.6;
+      ЛАБ.вихри.forEach((в, i) => { в.position.y = 1 + Math.sin(time*1.5 + i)*0.4; в.position.x = Math.cos(time + i*2)*0.35; в.position.z = Math.sin(time + i*2)*0.35; }); },
+    бакЗакрыт() { if (шаг !== 'бак') return; шаг = 'лифт';
+      сказать('ПРОФЕССОР', 'Великолепно! А боссы — в особом отделе. Теперь главное: призраки сломали лифт и растащили кнопки этажей.', 6);
+      сказать('ПРОФЕССОР', 'Кнопки «1» и «5» у тебя. Поднимись по лестнице в лобби — лифт там, слева от стойки. Езжай на пятый этаж.', 6);
+      сказать('ПРОФЕССОР', 'Там Уборщица утащила мой чемодан! А в нём — моя кнопка от третьего этажа. Спектр покажет её следы.', 6);
+      задача('🛗 Лобби (лестница из коридора подвала: вверх по ступенькам к большой двери) → лифт слева от стойки → 5-й этаж'); },
+    приехал(f) { if (f === 5) { дошёлДо('уборщица'); этапId = 'уборщица'; подготовитьМир('уборщица', true); этапУборщица({ приехал:true }); } },
+  };
+}
+/* ═══════════ 🧹 ЭТАП 9: БОСС УБОРЩИЦА ═══════════ */
+function этапУборщица(опц) {
+  войтиВЗону('этаж'); фонарь(true); мерцание(0.7);
+  const Л = ЭТ.лифт; if (!опц.приехал) { встать(Л.кабина.x, 0, Л.кабина.z, 0); Л.этаж = 5; лифтТабло(5); Л.откр = 1; Snd.дзынь(); }
+  БЕЛ.чемодан.visible = false; const дБ = ДВЕРИ.find(д => д.номер === 'БЕЛЬЁ'); дБ.закрыта = false; дБ.открыта = false; дБ.к.y0 = 0; дБ.к.y1 = 2.2;
+  задача('🟢 Пятый этаж. Держи СПЕКТР (G / 🟢) — он показывает невидимые следы Уборщицы');
+  сказать('ТЫ', 'Опять пятый этаж… Тёма, Лиза, Гоша — держитесь, я вернусь за вами!');
+  let шаг = 'следы', босс = null, видел = 0;
+  сюжет = { этап:'уборщица',
+    тик(dt) {
+      // 👣 следы светятся только в зелёном луче Спектра
+      camera.getWorldPosition(_к); camera.getWorldDirection(_н);
+      for (const с of БЕЛ.следы) { let о = 0;
+        if (ЕСТЬ.спектр && спектрЖму) { const v = new THREE.Vector3(с.position.x - _к.x, с.position.y - _к.y, с.position.z - _к.z), dd = v.length(); if (dd < 15 && v.dot(_н)/dd > 0.9) о = 0.9*(1 - dd/16); }
+        с.material.opacity += (о - с.material.opacity)*Math.min(1, dt*6); if (о > 0.3) видел++; }
+      if (шаг === 'следы' && видел > 30) { шаг = 'ищи'; задача('👣 Светящиеся следы! Иди по ним (держи Спектр)'); сказать('ТЫ', 'Следы! Мокрые, будто кто-то в тапочках шаркал… Ведут по коридору.'); }
+      if ((шаг === 'следы' || шаг === 'ищи') && И.x < -24 && И.z < -3.3) { шаг = 'бой'; Snd.морф();
+        босс = новыйПризрак('уборщица', -30, 0.3, -7.5, { бок:1, удар:2 });
+        БЕЛ.чемодан.visible = true; БЕЛ.чемодан.position.set(-30, 0, -5.5);
+        сказать('УБОРЩИЦА', 'Ой! Кто тут топчет мою бельевую?! Чемодан? Какой чемодан? Что я нашла — то моё!', 4.5);
+        сказать('УБОРЩИЦА', 'А ну, догони! Я знаю каждый номер на этом этаже!', 3); big('🧹 УБОРЩИЦА!', 2, '#c4b5fd');
+        задача('🧹 Поймай Уборщицу! Держи её лучом сколько сможешь — она вырывается и убегает в другой номер'); }
+      if (шаг === 'бой' && босс) { задача(`🧹 УБОРЩИЦА: ${Math.max(0, Math.ceil(босс.hp/босс.max*100))}% · держи лучом! ⚡ вспышка не даёт ей вырваться`);
+        if (босс.оглушён > 0) босс.держат = 0;
+        БЕЛ.чемодан.position.set(босс.x + 0.5, Math.max(0, босс.y + 0.6), босс.z); БЕЛ.чемодан.rotation.y = босс.g.rotation.y; }
+    },
+    поймал(п) { if (п.вид !== 'уборщица') return; шаг = 'чемодан'; БЕЛ.чемодан.position.set(п.x, 0, п.z); БЕЛ.чемодан.rotation.set(0, 0, 0);
+      big('🧹 УБОРЩИЦА ПОЙМАНА!', 2.2, '#86efac'); задача('🧳 ✋ Открой чемодан профессора'); },
+    действие() {
+      if (шаг === 'чемодан' && Math.hypot(И.x - БЕЛ.чемодан.position.x, И.z - БЕЛ.чемодан.position.z) < 2.2) { шаг = 'всё'; Snd.победа();
+        big('🔘 КНОПКА ЛИФТА «3»!', 2.6, '#fde68a'); сказать('ТЫ', 'Чемодан профессора! А внутри — кнопка от третьего этажа и какая-то банка с зелёной жижей…');
+        setTimeout(() => победаЭтапа('🧹 БОСС ПОЙМАН: УБОРЩИЦА', 'Ты гонял её по номерам, держал лучом и оглушал вспышкой — и затянул в Ракету! В чемодане профессора — кнопка «3» и банка с зелёной жижей. Продолжение (Марк): зелёная жижа и твой зелёный ДВОЙНИК!', null), 2800);
+        дошёлДо('жижа'); return true; }
+      if (ЕСТЬ.спектр) { const з = ЗЕРКАЛА.find(q => q.зн === 'этаж' && q.кто && Math.hypot(И.x - q.x, И.z - q.z) < 3); if (з) { big('🪞 Зеркало Морфа слишком сильное…\nСпектр пока не берёт', 2, '#c4b5fd');
+        сказать('ТЫ', `${з.кто.имя}, держись! Профессор что-нибудь придумает.`); return true; } }
+    } };
+}
+
+
 /* ═══════════ 🏗 СОБИРАЕМ ОТЕЛЬ ═══════════ */
-построитьЭтаж(); построитьПодвал(); построитьЛобби(); построитьЛабораторию(); построитьРуки();
+построитьЭтаж(); построитьПодвал(); построитьЛобби(); построитьЛабораторию(); построитьРуки(); построитьБельевую(); делаЛифтов();
 for (let i = 0; i < 6; i++) ЛОБ.баррикада.push(баррикадаВещь(i));
 ЛОБ.кирпичБарр = кирпич(-277.2, -274.2, -2, 2, -50, -49, 'баррикада');
 зам = человекМодель({ пиджак:0x2a2d36, брюки:0x1c1e26, галстук:0x9f1239, бейдж:'ЗАМ. ДИРЕКТОРА', волосы:0x111111, кожа:0xd9c2a8 }); зам.visible = false; scene.add(зам);
@@ -1711,7 +1970,7 @@ let last = performance.now();
 function кадр(now) {
   requestAnimationFrame(кадр);
   const dt = Math.min(0.05, (now - last)/1000); last = now;
-  if (state === 'пауза' || state === 'фото') { renderer.render(scene, camera); return; }
+  if (state === 'пауза' || state === 'фото' || state === 'окно') { renderer.render(scene, camera); return; }
   time += dt;
   if (state === 'play') {
     двигатьИгрока(dt);
@@ -1749,7 +2008,8 @@ $('паузаКн').onclick = () => паузу(); $('продолжить').oncl
 $('экранКн').onclick = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else наВесьЭкран(); };
 $('какКн').onclick = () => $('как').classList.remove('hidden'); $('какНазад').onclick = () => $('как').classList.add('hidden');
 $('главыКн').onclick = () => { const сп = $('списокГлав'); сп.innerHTML = '<p>🏨 <b>Глава 1</b> — ночь, подвал, лобби и первый босс. Пройденное можно переиграть.</p>';
-  ЭТАПЫ.forEach((э, i) => { const можно = ДОШЁЛ.has(э.id); const b = document.createElement('button'); b.className = 'глава' + (можно ? '' : ' закрыта');
+  ЭТАПЫ.forEach((э, i) => { if (i && э.глава !== ЭТАПЫ[i - 1].глава) { const h = document.createElement('p'); h.innerHTML = '🏨 <b>Глава ' + э.глава + '</b> — бак, лифт и пятый этаж. Боссы — с короной 👑.'; сп.appendChild(h); }
+    const можно = ДОШЁЛ.has(э.id); const b = document.createElement('button'); b.className = 'глава' + (можно ? '' : ' закрыта');
     b.innerHTML = `<span class="em">${можно ? э.em : '🔒'}</span><span><b>${i + 1}. ${э.имя}</b>${э.босс ? ' 👑' : ''}<small>${можно ? э.кратко : 'Ещё не дошёл'}</small></span>`;
     if (можно) b.onclick = () => начатьЭтап(э.id); сп.appendChild(b); });
   $('главы').classList.remove('hidden'); };
@@ -1770,6 +2030,9 @@ window.__dbg = {
     морф:морф.g.visible ? { x:+морф.x.toFixed(1), z:+морф.z.toFixed(1) } : null, зам:зам.visible, проф:проф.visible, рубильник:ПОД.рубильник.вкл, ворота:+ПОД.ворота.подъём.toFixed(2),
     коробки:ГАР.коробки.map(к => [+к.x.toFixed(1), +к.z.toFixed(1)]), зеркалоП:+ЛОБ.зеркалоП.свобода.toFixed(2), проверено:Object.values(ЭТ.номера).filter(н => н.проверен).length, лифт:ЭТ.лифт.этаж }; },
   get кнопки(){ return кнопкиЛифта.filter(к => к.visible).map(к => ({ x:к.position.x, z:к.position.z })); },
+  lift(f){ const Л = вКабине() || ЛИФТЫ.find(q => q.зн === зона); поехать(Л, f); return Л.зн; }, bakOpen(){ открытьБак(true); return $('бакСписок').children.length; },
+  get чем(){ return БЕЛ.чемодан && БЕЛ.чемодан.visible ? { x:БЕЛ.чемодан.position.x, z:БЕЛ.чемодан.position.z } : null; },
+  get следы(){ return БЕЛ.следы.filter(с => с.material.opacity > 0.3).length; },
   skipSpeech(){ очередьРечи.length = 0; следующаяРечь(); return true; },
   stunAll(){ ПРИЗРАКИ.forEach(п => п.оглушён = 5); return true; },
   photo(x, y, z, lx, ly, lz){ state = 'фото'; document.body.classList.remove('play'); $('меню').classList.add('hidden'); camera.position.set(x, y, z); camera.lookAt(lx, ly, lz); return true; },
