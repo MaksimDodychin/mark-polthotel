@@ -126,7 +126,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#7c3aed">
-  <script>window.__APP_VER = "d6407559c7";</script>
+  <script>window.__APP_VER = "16c91bb763";</script>
 </head>
 <body>
 <div class="screen" id="меню">
@@ -1370,6 +1370,7 @@ function лучТик(dt) {
     if (лучш) { const п = лучш; цельЛуча = п;
       $('полоса').style.display = 'block'; $('полосаИмя').textContent = п.имя + (п.оглушён > 0 ? ' 💫' : ''); $('полосаЗнач').style.width = Math.max(0, п.hp/п.max*100) + '%';
       if (п.строит) { подсказка('🧱 Они строят баррикаду — луч их пока не берёт!', 1); return; }
+      if (п.неЛовится) { подсказка(п.неЛовится, 1.2); return; }                    // 🎹 Пианист в рояле
       if ((п.сидит || п.щит) && п.оглушён <= 0) { подсказка(п.сидит ? '🟡 Вцепился в стул! ⚡ Вспышка (Q) — и отпустит' : '🍳 Сковородка отражает луч! Жди, пока он печёт блины, — тогда ⚡', 1.2); return; }
       if (п.держит && п.оглушён <= 0) { подсказка('🧳 Закрылся чемоданом! ⚡ ВСПЫШКА (Q) — и он его уронит', 1.2); п.держит.m.rotation.z = Math.sin(time*30)*0.05; return; }
       const dps = п.оглушён > 0 ? 46 : 13; п.hp -= dps*dt; п.тянут = 1; п.подЛучом = 0.3;
@@ -1446,7 +1447,7 @@ const номерЭтапа = id => ЭТАПЫ.findIndex(э => э.id === id);
 /* 🧹 мир перед этапом: всё, что «было до него», — уже сделано */
 function подготовитьМир(id) {
   const н = номерЭтапа(id);
-  молчать(); убратьПризраков(); БРОСКИ.length = 0; if (typeof пипидастрыУбрать === 'function') { пипидастрыУбрать(); водуУбрать(); } всасЖму = выдувЖму = спектрЖму = false; тряска = 0;
+  молчать(); убратьПризраков(); БРОСКИ.length = 0; if (typeof нотыУбрать === 'function') { нотыУбрать(); музыкаТеатра(null); } if (typeof пипидастрыУбрать === 'function') { пипидастрыУбрать(); водуУбрать(); } всасЖму = выдувЖму = спектрЖму = false; тряска = 0;
   ЕСТЬ.ракета = н >= 3 || (id === 'подвал' && false); ЕСТЬ.спектр = н >= 5;
   И.сердца = 3; И.неуязв = 0; И.оглушён = 0; сердцаHUD();
   // 5-й этаж
@@ -1885,7 +1886,7 @@ function бакТик(dt) {
 
 /* ═══════════ 🛗 ЛИФТ: встал в кабину → ✋ → выбираешь этаж (только те, чьи кнопки вернул). Звук поездки ═══════════ */
 const ЭТАЖИ = { 1:{ зона:'лобби', лифт:() => ЛИФТЫ.find(Л => Л.зн === 'лобби') }, 5:{ зона:'этаж', лифт:() => ЭТ.лифт } };
-function кнопкиЕсть() { const к = new Set(); if (ДОШЁЛ.has('лаб')) { к.add(1); к.add(5); } if (ДОШЁЛ.has('жижа')) к.add(3); if (ДОШЁЛ.has('ресторан')) к.add(2); if (ДОШЁЛ.has('этаж4')) к.add(4); return к; }
+function кнопкиЕсть() { const к = new Set(); if (ДОШЁЛ.has('лаб')) { к.add(1); к.add(5); } if (ДОШЁЛ.has('жижа')) к.add(3); if (ДОШЁЛ.has('ресторан')) к.add(2); if (ДОШЁЛ.has('этаж4')) к.add(4); if (ДОШЁЛ.has('этаж6')) к.add(6); return к; }
 function вКабине() { return ЛИФТЫ.find(Л => Л.зн === зона && Math.abs(И.x - Л.кабина.x) < 0.95 && Math.abs(И.z - Л.кабина.z) < 1.0); }
 function делаЛифтов() { for (const Л0 of ЛИФТЫ) { const Л = Л0;
   дело(Л.кабина.x, Л.кабина.z, 1.2, '🛗 Кнопки этажей', () => зона === Л.зн && state === 'play', () => лифтПанель(Л));
@@ -2845,21 +2846,332 @@ function стол2(x, z) {
         сказать('ПОВАР', 'Бонжур! Кто пустил на мою кухню пылесос?! Сейчас я приготовлю из тебя… омлет!', 4.5); }
       if (шаг === 'бой' && босс) задача(`👨‍🍳 ПОВАР: ${Math.max(0, Math.ceil(босс.hp/босс.max*100))}% · пока печёт блины — ⚡ и 🌀! Поднял сковородку — уходи от помидоров`);
       if (шаг === 'крыса' && крыса) задача('🐀 Крыса утащила кнопку «4»! Догони — ⚡ оглуши и 🌀 всасывай');
+      if (шаг === 'лифт') задача('🛗 Кнопка «4» у тебя! Лифт — у южной стены ресторана. ✋ «Кнопки этажей» → вставь «4» → 4-й этаж');
     },
     поймал(п) {
       if (п.вид === 'повар') { шаг = 'крыса'; big('👨‍🍳 ПОВАР ПОЙМАН!', 2, '#86efac');
         const кн = кнопкиЛифта[0]; кн.visible = true; кн.position.set(п.x, 0.2, п.z);
         setTimeout(() => { кн.visible = false; крыса = новыйПризрак('крыса', п.x + 0.6, 0, п.z, {}); Snd.тон(2800, 0.3, 'square', 0.04, 3600);
           big('🐀 КРЫСА УТАЩИЛА КНОПКУ!', 2, '#fca5a5'); сказать('ТЫ', 'Эй! Это моя кнопка! Стой, хвостатая!', 3); }, 1600); }
-      if (п.вид === 'крыса') { шаг = 'всё'; Snd.победа(); big('🔘 КНОПКА ЛИФТА «4»!', 2.4, '#fde68a'); дошёлДо('этаж4');
-        setTimeout(() => победаЭтапа('👨‍🍳 БОСС ПОЙМАН: ПОВАР', 'Ты оглушал Повара, пока он пёк блины, и уворачивался от помидоров. А потом догнал крысу с кнопкой! У тебя кнопка «4» — дальше музыкальный театр с призраком-пианистом (Марк расскажет).', null), 2800); }
+      if (п.вид === 'крыса') { шаг = 'лифт'; Snd.победа(); big('🔘 КНОПКА ЛИФТА «4»!', 2.4, '#fde68a'); дошёлДо('этаж4');
+        сказать('ТЫ', 'Попалась, хвостатая! Кнопка «4» моя. Теперь — к лифту: говорят, на четвёртом этаже музыкальный театр…', 4.5); }
     },
   };
 };
 
 
+/* ═══════════ 🎹 ГЛАВА 5 (Марк 10.10 и 17.10): четвёртый этаж — МУЗЫКАЛЬНЫЙ ТЕАТР ═══════════
+   «Когда ты попадаешь на четвёртый этаж, там театр музыкальный. Там будет симфонический оркестр в главном зале.
+   И там будет призрак, играющий на пианино. Потом он вселяется в это пианино, и тебе придётся вытеснять его из
+   пианино и ловить. Потом ты получаешь кнопку от шестого этажа.» Музыкант — «с белой причёской».
+   Как устроено: фойе с афишами и гардеробом → зрительный зал (красные кресла рядами, люстра) → оркестр призраков
+   у сцены → на сцене концертный рояль. Пианист вселяется в рояль: тот оживает — прыгает, хлопает крышкой и стреляет
+   нотами. Вытеснить его — светить СПЕКТРОМ на рояль; выскочил — ⚡ и 🌀, пока не залез обратно. */
+ЭТАПЫ.push({ id:'театр', глава:5, em:'🎻', имя:'Четвёртый этаж: театр', кратко:'Музыкальный театр. В зале играет оркестр призраков — поймай всех музыкантов!' },
+  { id:'пианист', глава:5, em:'🎹', имя:'БОСС: Пианист', кратко:'Призрак с белой причёской вселяется в рояль. Свети Спектром — вытеснишь его, а потом ⚡ и 🌀!', босс:true });
+ЭТАПЫ.forEach(э => { э.глава = э.глава || 1; });
+const ЭТАЖ4_ЭТАП = 'театр';
+ЗОНЫ.этаж4 = { свет:[], туман:[0x0c0810, 24, 95], фон:0x07050a, небо:0.34, центр:[0, 616], имя:'🎻 4-й этаж' };
+ЭТАЖИ[4] = { зона:'этаж4', лифт:() => ЛИФТЫ.find(Л => Л.зн === 'этаж4') };
+Object.assign(ИНФО_ПРИЗРАКОВ, {
+  музыкант:{ имя:'Музыкант', цвет:0x60a5fa, босс:false, текст:'Синий призрак из оркестра. Играет на скрипке, виолончели, трубе, барабане или флейте — и швыряется нотами.' },
+  пианист:{ имя:'Пианист', цвет:0xa5b4fc, босс:true, текст:'Маэстро с белой причёской и во фраке. Вселяется в рояль: тот скачет, хлопает крышкой и стреляет нотами. Спектр выгоняет его наружу.' },
+});
+ВИДЫ.музыкант = { имя:'🎻 Музыкант', цвет:0x60a5fa, hp:70 };
+ВИДЫ.пианист = { имя:'🎹 ПИАНИСТ', цвет:0xa5b4fc, hp:340 };
+const ТЕАТР = { музыканты:[], рояль:null, сцена:{ x0:-17, x1:17, z0:629, z1:643, y:1 }, зал:{ x0:-22, x1:22, z0:600, z1:644 }, ноты:[] };
+
+/* 🎻 инструменты музыкантов — похожие на себя: скрипка с грифом и смычком, виолончель, труба с раструбом, барабан, флейта */
+function инструмент(вид) {
+  const g = new THREE.Group(), дерево = мат.карта(деревоТ('#a0522d', '#5a2a10'), 0.35), чёрн = мат.пластик(0x111111, 0.5), латунь = мат.латунь(0.25);
+  if (вид === 'скрипка' || вид === 'виолончель') { const k = вид === 'скрипка' ? 1 : 2.4;
+    const ф = new THREE.Shape(); ф.moveTo(0, -0.18); ф.bezierCurveTo(0.13, -0.18, 0.14, -0.06, 0.08, -0.02); ф.bezierCurveTo(0.12, 0.03, 0.12, 0.13, 0, 0.14); ф.bezierCurveTo(-0.12, 0.13, -0.12, 0.03, -0.08, -0.02); ф.bezierCurveTo(-0.14, -0.06, -0.13, -0.18, 0, -0.18);
+    const корп = new THREE.Mesh(new THREE.ExtrudeGeometry(ф, { depth:0.05, bevelEnabled:true, bevelSize:0.01, bevelThickness:0.01, bevelSegments:2 }), дерево); корп.position.z = -0.025; g.add(корп);
+    const гриф = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.02), чёрн); гриф.position.set(0, 0.26, 0.04); g.add(гриф);
+    const завит = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.01, 6, 12), дерево); завит.position.set(0, 0.41, 0.04); завит.rotation.y = Math.PI/2; g.add(завит);
+    const смычок = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.5, 6), мат.пластик(0xe7d7b0, 0.6)); смычок.rotation.z = 1.2; смычок.position.set(0.05, 0, 0.08); g.add(смычок); g.userData.смычок = смычок;
+    g.scale.setScalar(k); return g; }
+  if (вид === 'труба') { const кр = new THREE.CatmullRomCurve3([[0, 0, -0.25], [0.04, 0, -0.05], [0, 0.05, 0.05], [-0.04, 0, 0.12], [0, 0, 0.25]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(кр, 30, 0.018, 8), латунь));
+    const раструб = new THREE.Mesh(new THREE.LatheGeometry([[0.02, 0], [0.04, 0.06], [0.11, 0.13]].map(([a, b]) => new THREE.Vector2(a, b)), 20), латунь); раструб.rotation.x = Math.PI/2; раструб.position.z = 0.25; раструб.material = латунь; g.add(раструб);
+    for (let i = 0; i < 3; i++) { const кл = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 8), латунь); кл.position.set(0, 0.05, -0.02 + i*0.04); g.add(кл); } return g; }
+  if (вид === 'барабан') { const б = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.3, 28), мат.пластик(0xdc2626, 0.4)); g.add(б);
+    for (const y of [-0.15, 0.15]) { const о = new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.015, 6, 28), латунь); о.rotation.x = Math.PI/2; о.position.y = y; g.add(о); }
+    const кожа = new THREE.Mesh(new THREE.CircleGeometry(0.28, 28), мат.пластик(0xf5f0e6, 0.8)); кожа.rotation.x = -Math.PI/2; кожа.position.y = 0.152; g.add(кожа);
+    for (const s of [-1, 1]) { const п = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.3, 6), дерево); п.position.set(s*0.12, 0.3, 0.05); п.rotation.z = s*0.6; g.add(п); g.userData['палочка' + s] = п; } return g; }
+  const фл = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.6, 10), мат.металл(0xd0d4da, 0.2)); фл.rotation.z = Math.PI/2; g.add(фл);
+  for (let i = 0; i < 6; i++) { const к = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.02, 8), мат.металл(0xa0a4aa, 0.3)); к.position.set(-0.15 + i*0.06, 0.012, 0); g.add(к); } return g;
+}
+function музыкантМодель(вид) { const g = призракМодель(0x60a5fa, { руки:true }); const и = инструмент(вид || 'скрипка'); g.userData.инструмент = и;
+  if (вид === 'барабан') и.position.set(0, 0.25, 0.65); else if (вид === 'виолончель') { и.position.set(0.15, 0.25, 0.55); и.rotation.z = 0.15; }
+  else if (вид === 'труба') { и.position.set(0, 0.6, 0.6); } else if (вид === 'флейта') { и.position.set(0.25, 0.68, 0.5); } else { и.position.set(-0.28, 0.72, 0.45); и.rotation.set(-0.3, 0.5, 1.1); }
+  g.userData.тело.add(и);
+  const бабочка = new THREE.Group(); for (const s of [-1, 1]) { const к = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), мат.пластик(0x111111, 0.4)); к.rotation.z = s*Math.PI/2; к.position.x = s*0.06; бабочка.add(к); }
+  бабочка.position.set(0, 0.38, 0.55); g.userData.тело.add(бабочка); return g; }
+/* 🎩 ПИАНИСТ: фрак с фалдами, белая манишка, бабочка, пышная БЕЛАЯ причёска (Марк) */
+function пианистМодель() {
+  const g = new THREE.Group(), тело = new THREE.Group(); g.add(тело); const цв = 0xa5b4fc;
+  const дух = свечение(new THREE.MeshStandardMaterial({ color:цв, transparent:true, opacity:0.55, emissive:цв, emissiveIntensity:1.1, roughness:0.35, depthWrite:false, side:THREE.DoubleSide }));
+  const хв = new THREE.Mesh(new THREE.LatheGeometry([[0, -0.2], [0.18, -0.08], [0.33, 0.25], [0.42, 0.65]].map(([a, b]) => new THREE.Vector2(a, b)), 28), дух); тело.add(хв);
+  const фракМ = мат.пластик(0x111118, 0.45);
+  const фрак = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, 0.95, 28), фракМ); фрак.position.y = 1.05; тело.add(фрак);
+  const манишка = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.6), мат.пластик(0xf8fafc, 0.6)); манишка.position.set(0, 1.18, 0.4); манишка.rotation.x = -0.08; тело.add(манишка);
+  for (let i = 0; i < 3; i++) { const п = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), мат.пластик(0x111111)); п.position.set(0, 1.28 - i*0.13, 0.43); тело.add(п); }
+  for (const s of [-1, 1]) { const ф = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.75), фракМ); ф.material.side = THREE.DoubleSide; ф.position.set(s*0.14, 0.45, -0.38); ф.rotation.set(0.3, 0, s*0.08); тело.add(ф);   // фалды
+    const б = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.14, 4), мат.пластик(0x111111, 0.4)); б.rotation.z = s*Math.PI/2; б.position.set(s*0.07, 1.5, 0.42); тело.add(б); }
+  for (const sx of [-1, 1]) { const п = new THREE.Group(); п.position.set(sx*0.44, 1.4, 0); тело.add(п);
+    const рук = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.4, 6, 10), фракМ); рук.position.y = -0.26; п.add(рук);
+    const манж = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.06, 12), мат.пластик(0xf8fafc, 0.6)); манж.position.y = -0.48; п.add(манж);
+    const кисть = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), дух); кисть.position.y = -0.56; п.add(кисть); п.rotation.set(-0.9, 0, sx*0.25); g.userData['рука' + sx] = п; }
+  const гол = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 18), дух); гол.position.y = 1.86; тело.add(гол);
+  const глМ = new THREE.MeshStandardMaterial({ color:0x080a10 });
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), глМ); e.position.set(sx*0.11, 1.92, 0.28); тело.add(e);
+    const бр = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.02), мат.пластик(0xf8fafc, 0.7)); бр.position.set(sx*0.11, 2.0, 0.29); бр.rotation.z = sx*0.25; тело.add(бр); }
+  // 🤍 пышная белая причёска: зачёс назад и вбок, пряди торчат
+  const волМ = мат.пластик(0xf8fafc, 0.85);
+  for (let i = 0; i < 16; i++) { const a = i/16*Math.PI*2, r = 0.3 + (i % 3)*0.04; const пр = new THREE.Mesh(new THREE.SphereGeometry(0.14 + (i % 4)*0.02, 12, 10), волМ);
+    пр.position.set(Math.cos(a)*r*0.95, 2.02 + Math.sin(i*1.3)*0.06, Math.sin(a)*r*0.9 - 0.08); тело.add(пр); }
+  for (let i = 0; i < 9; i++) { const к = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 8), волМ); const a = -0.9 + i*0.22; к.position.set(Math.sin(a)*0.34, 2.12, -Math.cos(a)*0.3 - 0.05); к.rotation.set(-1.1, 0, -Math.sin(a)*0.8); тело.add(к); }
+  const L = new THREE.PointLight(0xa5b4fc, 3, 8); L.position.y = 1.4; g.add(L);
+  g.userData.тело = тело; g.userData.м = дух; g.userData.L = L; тело.traverse(o => { if (o.isMesh) o.castShadow = false; });
+  return g;
+}
+Object.assign(МОДЕЛИ_ПРИЗРАКОВ, { музыкант:() => музыкантМодель('скрипка'), пианист:пианистМодель });
+
+/* 🎹 КОНЦЕРТНЫЙ РОЯЛЬ: чёрный лак, изгиб корпуса, крышка на подпорке, клавиши, золотая рама и струны, три ножки, педали, банкетка */
+function рояльМодель() {
+  const g = new THREE.Group(), лак = new THREE.MeshPhysicalMaterial({ color:0x0b0b0f, roughness:0.12, metalness:0.1, clearcoat:1, clearcoatRoughness:0.06 });
+  const к = new THREE.Shape(); к.moveTo(-0.74, 0); к.lineTo(0.74, 0); к.lineTo(0.74, -0.55); к.bezierCurveTo(0.74, -1.05, 0.12, -1.15, 0.02, -1.62);
+  к.quadraticCurveTo(-0.08, -2.0, -0.42, -2.08); к.quadraticCurveTo(-0.72, -2.1, -0.74, -1.92); к.lineTo(-0.74, 0);
+  const корпус = new THREE.Mesh(new THREE.ExtrudeGeometry(к, { depth:0.32, bevelEnabled:true, bevelSize:0.015, bevelThickness:0.015, bevelSegments:2, curveSegments:24 }), лак);
+  корпус.geometry.rotateX(Math.PI/2); корпус.position.y = 1.03; g.add(корпус);
+  const рамаМ = мат.латунь(0.3), внутри = new THREE.Shape(); внутри.moveTo(-0.66, -0.12); внутри.lineTo(0.66, -0.12); внутри.lineTo(0.66, -0.55); внутри.bezierCurveTo(0.66, -0.98, 0.08, -1.08, -0.04, -1.55); внутри.quadraticCurveTo(-0.14, -1.9, -0.42, -1.98); внутри.lineTo(-0.66, -1.85); внутри.lineTo(-0.66, -0.12);
+  const рама = new THREE.Mesh(new THREE.ShapeGeometry(внутри, 20), рамаМ); рама.rotation.x = -Math.PI/2; рама.position.y = 1.02; g.add(рама);
+  const стр = new THREE.BufferGeometry(), сп = []; for (let i = 0; i < 40; i++) { const u = -0.62 + i*0.031; сп.push(u, 1.035, -0.15, u, 1.035, -0.15 - (1.75 - (u + 0.62)*0.9)); }
+  стр.setAttribute('position', new THREE.Float32BufferAttribute(сп, 3)); g.add(new THREE.LineSegments(стр, new THREE.LineBasicMaterial({ color:0xe5e7eb })));
+  // крышка на петле вдоль прямой (левой) стенки, подпорка
+  const петля = new THREE.Group(); петля.position.set(-0.74, 1.05, 0); g.add(петля);
+  const лидГ = new THREE.ExtrudeGeometry(к, { depth:0.025, bevelEnabled:false, curveSegments:24 }); лидГ.rotateX(Math.PI/2); лидГ.translate(0.74, 0.025, 0);
+  const крышка = new THREE.Mesh(лидГ, лак); петля.add(крышка); петля.rotation.z = -0.62;
+  const подпорка = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 8), лак); подпорка.position.set(0.55, 1.33, -0.75); подпорка.rotation.z = -0.35; g.add(подпорка);
+  // клавиатура: 52 белые и 36 чёрных, клавишная планка
+  const бел = new THREE.InstancedMesh(new THREE.BoxGeometry(0.026, 0.022, 0.15), мат.пластик(0xf8f8f4, 0.3), 52), чёр = new THREE.InstancedMesh(new THREE.BoxGeometry(0.016, 0.03, 0.095), мат.глянец(0x0a0a0a), 36);
+  const м4 = new THREE.Matrix4(); let ч = 0;
+  for (let i = 0; i < 52; i++) { м4.makeTranslation(-0.71 + i*0.0279, 0.78, 0.075); бел.setMatrixAt(i, м4); const нота = i % 7; if (i < 51 && нота !== 2 && нота !== 6 && ч < 36) { м4.makeTranslation(-0.71 + i*0.0279 + 0.014, 0.8, 0.04); чёр.setMatrixAt(ч++, м4); } }
+  чёр.count = ч; g.add(бел, чёр);
+  const планка = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 0.06), лак); планка.position.set(0, 0.8, 0.17); g.add(планка);
+  const бокЛ = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.2), лак); бокЛ.position.set(-0.76, 0.8, 0.08); g.add(бокЛ); const бокП = бокЛ.clone(); бокП.position.x = 0.76; g.add(бокП);
+  const пюпитр = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.02), лак); пюпитр.position.set(0, 1.2, -0.2); пюпитр.rotation.x = -0.3; g.add(пюпитр);
+  const нотыТ = холст(256, 128, (gg, w, h) => { gg.fillStyle = '#f5f0e0'; gg.fillRect(0, 0, w, h); gg.strokeStyle = '#333'; for (let r = 0; r < 3; r++) for (let l = 0; l < 5; l++) { gg.beginPath(); gg.moveTo(8, 18 + r*38 + l*5); gg.lineTo(w - 8, 18 + r*38 + l*5); gg.stroke(); }
+    gg.fillStyle = '#111'; for (let i = 0; i < 26; i++) { gg.beginPath(); gg.ellipse(14 + i*9, 22 + (i % 3)*38 + (i*7 % 5)*2, 3, 2.2, -0.4, 0, 7); gg.fill(); } });
+  const листы = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.24), new THREE.MeshStandardMaterial({ map:нотыТ, roughness:0.8 })); листы.position.set(0, 1.21, -0.188); листы.rotation.x = -0.3; g.add(листы);
+  // 👀 глаза рояля — загораются, когда в нём Пианист
+  const глаза = []; for (const s of [-1, 1]) { const е = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), мат.светит(0xc4b5fd, 3)); е.position.set(s*0.18, 1.3, -0.17); е.visible = false; g.add(е); глаза.push(е); }
+  // ножки с колёсиками, лира с педалями
+  for (const [x, z] of [[-0.62, -0.12], [0.62, -0.12], [-0.5, -1.82]]) { const н = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.72, 12), лак); н.position.set(x, 0.36, z); g.add(н);
+    const кол = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), мат.латунь(0.25)); кол.position.set(x, 0.03, z); g.add(кол); }
+  const лира = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.05), лак); лира.position.set(0, 0.32, -0.32); g.add(лира);
+  for (let i = 0; i < 3; i++) { const п = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.015, 0.12), мат.латунь(0.25)); п.position.set(-0.07 + i*0.07, 0.08, -0.25); g.add(п); }
+  const скам = new THREE.Group(); скам.position.set(0, 0, 0.62); g.add(скам);
+  const подушка = new THREE.Mesh(скругл(0.75, 0.1, 0.36, 0.04), мат.пластик(0x1f1f24, 0.8)); подушка.position.y = 0.5; скам.add(подушка);
+  for (const sx of [-0.32, 0.32]) for (const sz of [-0.14, 0.14]) { const н = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.45, 8), лак); н.position.set(sx, 0.23, sz); скам.add(н); }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return { g, петля, глаза, бел, скам };
+}
+
+/* 🏛 ЧЕТВЁРТЫЙ ЭТАЖ: фойе x −10…10, z 590…600 (лифт на юге, x 6); зал x −22…22, z 600…644; сцена z 629…643 высотой 1 */
+function построитьЭтаж4() {
+  const кр = холст(256, 256, (g, w, h) => { g.fillStyle = '#7f1d1d'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,.08)' : 'rgba(255,200,200,.05)'; g.fillRect(rnd(0, w), rnd(0, h), 2, 2); } }, [8, 8]);
+  const паркет = холст(512, 512, (g, w, h) => { for (let y = 0; y < h; y += 32) for (let x = (y/32 % 2)*32; x < w; x += 64) { g.fillStyle = ['#6b3a1c', '#7a4424', '#5e3216'][Math.floor(Math.random()*3)]; g.fillRect(x, y, 64, 32); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x, y, 64, 2); } });
+  const обои = холст(256, 256, (g, w, h) => { g.fillStyle = '#4a1e2a'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(214,170,90,.35)'; g.lineWidth = 3; for (let x = 0; x < w; x += 64) for (let y = 0; y < h; y += 64) { g.beginPath(); g.arc(x + 32, y + 32, 18, 0, 7); g.stroke(); } });
+  // фойе: ковровая дорожка, афиши, гардероб, касса
+  пол_(-10, 10, 590, 600, паркет, [4, 2]); потолок_(-10, 10, 590, 600, 4.2, холст(128, 128, (g, w, h) => { g.fillStyle = '#efe4cc'; g.fillRect(0, 0, w, h); g.strokeStyle = '#c9a24a'; g.lineWidth = 3; g.strokeRect(6, 6, w - 12, h - 12); }));
+  стена('x', 590, -10, 10, 4.2, [[6, 1.6, 2.4]], обои, 1); стена('z', -10, 590, 600, 4.2, [], обои, 1); стена('z', 10, 590, 600, 4.2, [], обои, -1);
+  const дорожка = сетка(new THREE.PlaneGeometry(3, 10), new THREE.MeshStandardMaterial({ map:кр, roughness:1 }), 0, 0.012, 595); дорожка.rotation.x = -Math.PI/2; дорожка.castShadow = false;
+  const афиша = (x, z, ry, верх, низ, цв) => { const т = холст(256, 384, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, цв); gr.addColorStop(1, '#0b0610'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#d4a017'; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16); g.fillStyle = '#fde68a'; g.font = 'bold 30px Georgia'; g.textAlign = 'center'; верх.split('\n').forEach((s, i) => g.fillText(s, w/2, 70 + i*36));
+      g.font = '120px serif'; g.fillText(низ, w/2, 280); g.font = 'bold 22px Georgia'; g.fillStyle = '#fca5a5'; g.fillText('СЕГОДНЯ!', w/2, 350); });
+    const м = сетка(new THREE.PlaneGeometry(1.1, 1.65), new THREE.MeshStandardMaterial({ map:т, emissive:0xffffff, emissiveMap:т, emissiveIntensity:0.25 }), x, 1.7, z); м.rotation.y = ry; };
+  афиша(-9.9, 593, Math.PI/2, 'ПРИЗРАЧНАЯ\nСИМФОНИЯ', '🎻', '#3b1d5c'); афиша(-9.9, 597, Math.PI/2, 'МАЭСТРО\nПИАНИСТ', '🎹', '#1d2f5c'); афиша(9.9, 594, -Math.PI/2, 'НОЧНОЙ\nКОНЦЕРТ', '🎺', '#5c1d2f');
+  const гард = new THREE.Group(); гард.position.set(8.4, 0, 597.5); scene.add(гард);
+  сетка(скругл(1, 1.05, 3, 0.05), мат.карта(деревоТ('#5c3317', '#2e170a'), 0.5), 0, 0.52, 0, гард);
+  for (let i = 0; i < 6; i++) { const к = сетка(new THREE.CylinderGeometry(0.012, 0.012, 0.25, 6), латуньМ, 0.6, 2.1, -1.2 + i*0.48, гард); к.rotation.z = Math.PI/2;
+    if (i % 2) сетка(new THREE.CapsuleGeometry(0.16, 0.6, 6, 10), мат.пластик([0x334155, 0x7c2d12, 0x14532d][i % 3], 0.8), 0.72, 1.65, -1.2 + i*0.48, гард); }
+  кирпич(7.9, 8.9, 596, 599, 0, 1.05, 'гардероб');
+  лампа('этаж4', 0, 3.6, 595, 0xffe0b0, 14, 16);
+  // проём в зал (большие двери распахнуты)
+  стена('x', 600, -10, 10, 4.2, [[0, 4, 3.2]], обои, -1);
+  // зал
+  пол_(-22, 22, 600, 644, паркет, [12, 12]); потолок_(-22, 22, 600, 644, 9, холст(256, 256, (g, w, h) => { g.fillStyle = '#3a1620'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(214,170,90,.5)'; g.lineWidth = 4; for (let i = 16; i < w; i += 64) g.strokeRect(i, i, w - 2*i, h - 2*i); }));
+  стена('z', -22, 600, 644, 9, [], обои, 1); стена('z', 22, 600, 644, 9, [], обои, -1); стена('x', 644, -22, 22, 9, [], обои, -1);
+  стена('x', 600, -22, -10, 9, [], обои, 1); стена('x', 600, 10, 22, 9, [], обои, 1); стена('x', 600, -10, 10, 9, [[0, 20, 4.2]], обои, 1);
+  // 🪑 кресла рядами: красный бархат, подлокотники; проход посередине и по бокам
+  const сидГ = скругл(0.5, 0.12, 0.48, 0.05), спинГ = скругл(0.5, 0.62, 0.1, 0.05), подлГ = new THREE.BoxGeometry(0.05, 0.08, 0.5);
+  const мест = []; for (let r = 0; r < 10; r++) for (let x = -18.5; x <= 18.5; x += 0.62) { if (Math.abs(x) < 1.4) continue; мест.push([x, 603.5 + r*1.65 + (r % 2)*0.04]); }
+  const крМ = new THREE.MeshStandardMaterial({ map:кр, roughness:0.95 }), подлМ = мат.карта(деревоТ('#3a1e10', '#1a0c04'), 0.5);
+  const си = new THREE.InstancedMesh(сидГ, крМ, мест.length), сп = new THREE.InstancedMesh(спинГ, крМ, мест.length), по = new THREE.InstancedMesh(подлГ, подлМ, мест.length);
+  const м4 = new THREE.Matrix4(); мест.forEach(([x, z], i) => { м4.makeTranslation(x, 0.45, z); си.setMatrixAt(i, м4); м4.makeTranslation(x, 0.78, z - 0.26); сп.setMatrixAt(i, м4); м4.makeTranslation(x + 0.3, 0.62, z); по.setMatrixAt(i, м4); });
+  for (const м of [си, сп, по]) { м.castShadow = м.receiveShadow = true; scene.add(м); }
+  for (let r = 0; r < 10; r++) { const z = 603.5 + r*1.65; кирпич(-18.8, -1.4, z - 0.35, z + 0.35, 0, 1.08, 'кресла'); кирпич(1.4, 18.8, z - 0.35, z + 0.35, 0, 1.08, 'кресла'); }
+  // 🎭 сцена: дощатый пол, край с золотой каймой, ступени по бокам, занавес, рампа
+  const доски = холст(512, 256, (g, w, h) => { for (let y = 0; y < h; y += 24) { g.fillStyle = ['#8a5a2e', '#7b4f27', '#94643a'][Math.floor(Math.random()*3)]; g.fillRect(0, y, w, 24); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y, w, 2); } });
+  const С = ТЕАТР.сцена;
+  const сцена = сетка(new THREE.BoxGeometry(С.x1 - С.x0, С.y, С.z1 - С.z0 + 1), new THREE.MeshStandardMaterial({ map:доски, roughness:0.7 }), 0, С.y/2, (С.z0 + С.z1 + 1)/2);
+  сетка(new THREE.BoxGeometry(С.x1 - С.x0 + 0.1, 0.1, 0.1), мат.латунь(0.3), 0, С.y - 0.05, С.z0 - 0.02);
+  кирпич(С.x0, С.x1, С.z0, С.z1 + 1, 0, С.y, 'сцена');
+  for (const s of [-1, 1]) for (let i = 0; i < 4; i++) { const x = s*15.5, z = С.z0 - 0.4 - i*0.5; сетка(new THREE.BoxGeometry(2.2, (i + 1)*0.25, 0.5), new THREE.MeshStandardMaterial({ map:доски, roughness:0.7 }), x, (i + 1)*0.125, С.z0 - 2.15 + i*0.5);
+    кирпич(x - 1.1, x + 1.1, С.z0 - 2.4 + i*0.5, С.z0 - 1.9 + i*0.5, 0, (i + 1)*0.25, 'ступени'); }
+  const занТ = холст(256, 512, (g, w, h) => { for (let x = 0; x < w; x += 4) { const v = 0.55 + 0.45*Math.sin(x/w*Math.PI*10); g.fillStyle = `rgb(${Math.round(150*v + 40)},${Math.round(14*v)},${Math.round(24*v)})`; g.fillRect(x, 0, 4, h); }
+    g.fillStyle = '#d4a017'; g.fillRect(0, h - 22, w, 22); for (let x = 4; x < w; x += 10) { g.fillRect(x, h - 22, 4, 22 + (x % 20)); } });
+  const зан = new THREE.MeshStandardMaterial({ map:занТ, roughness:0.85, side:THREE.DoubleSide });
+  for (const s of [-1, 1]) { const п = сетка(new THREE.PlaneGeometry(6, 8), зан, s*14.5, 5, С.z0 + 0.6); п.castShadow = false; }
+  сетка(new THREE.PlaneGeometry(36, 2.4), зан, 0, 7.9, С.z0 + 0.62).castShadow = false;
+  сетка(new THREE.PlaneGeometry(34, 8), зан, 0, 5, С.z1 - 0.2).castShadow = false;
+  for (let x = -14; x <= 14; x += 2) сетка(new THREE.SphereGeometry(0.08, 10, 8), мат.светит(0xfff2c0, 2), x, С.y + 0.05, С.z0 + 0.15).castShadow = false;   // рампа
+  // 🎼 оркестр у сцены: стулья и пюпитры с нотами
+  ТЕАТР.места = [[-8, 625.4, 'скрипка'], [-4.2, 625.0, 'виолончель'], [0, 624.6, 'труба'], [4.2, 625.0, 'барабан'], [8, 625.4, 'флейта']];
+  for (const [x, z] of ТЕАТР.места) { const ст = new THREE.Group(); ст.position.set(x, 0, z); scene.add(ст);
+    сетка(скругл(0.5, 0.06, 0.5, 0.02), мат.пластик(0x1f1f24, 0.6), 0, 0.46, 0, ст); сетка(скругл(0.5, 0.5, 0.05, 0.02), мат.пластик(0x1f1f24, 0.6), 0, 0.75, -0.24, ст);
+    for (const sx of [-0.2, 0.2]) for (const sz of [-0.2, 0.2]) сетка(new THREE.CylinderGeometry(0.015, 0.015, 0.46, 6), мат.металл(0x3a3f46), sx, 0.23, sz, ст);
+    сетка(new THREE.CylinderGeometry(0.012, 0.012, 1.1, 6), мат.металл(0x3a3f46), 0, 0.55, 0.65, ст); const пю = сетка(new THREE.BoxGeometry(0.45, 0.32, 0.01), мат.металл(0x2a2f36), 0, 1.15, 0.65, ст); пю.rotation.x = -0.35; }
+  // 🎹 рояль на сцене (клавиатурой к западу, пианист сидит боком к залу)
+  const Р = рояльМодель(); Р.g.position.set(1.5, С.y, 636); Р.g.rotation.y = -Math.PI/2; scene.add(Р.g);
+  Object.assign(Р, { x:1.5, z:636, дом:{ x:1.5, z:636 }, вкл:false, прыг:0, кирпич:кирпич(0.4, 3.6, 634.5, 637.5, 0, С.y + 1.05, 'рояль') }); ТЕАТР.рояль = Р;
+  // 💡 свет: люстра в зале, прожекторы на сцену, бра
+  const лю = new THREE.Group(); лю.position.set(0, 7.8, 614); scene.add(лю);
+  for (const [r, n, y] of [[1.6, 12, 0], [1.0, 8, -0.5], [0.5, 6, -0.9]]) { сетка(new THREE.TorusGeometry(r, 0.04, 8, 32), латуньМ, 0, y, 0, лю).rotation.x = Math.PI/2;
+    for (let i = 0; i < n; i++) { const a = i/n*Math.PI*2; сетка(new THREE.SphereGeometry(0.07, 8, 6), мат.светит(0xffe0a0, 2.5), Math.cos(a)*r, y + 0.1, Math.sin(a)*r, лю).castShadow = false;
+      сетка(new THREE.OctahedronGeometry(0.06), мат.стекло(0xffffff, 0.5), Math.cos(a)*r, y - 0.15, Math.sin(a)*r, лю); } }
+  лампа('этаж4', 0, 7, 614, 0xffd9a0, 30, 30); лампа('этаж4', -10, 6, 636, 0xfff1d6, 30, 22); лампа('этаж4', 10, 6, 636, 0xfff1d6, 30, 22); лампа('этаж4', 0, 4, 624, 0xc8d8ff, 14, 16);
+  for (const x of [-21.8, 21.8]) for (const z of [606, 616, 626]) { сетка(new THREE.SphereGeometry(0.15, 10, 8), мат.светит(0xffd27a, 1.6), x*0.995, 3, z).castShadow = false; }
+  лифт(6, 590, 'этаж4', 1);
+}
+
+/* ♪ НОТЫ — снаряды музыкантов и рояля: летят дугой; попала — минус сердце */
+const нотаТ = холст(64, 64, (g, w, h) => { g.fillStyle = '#fde68a'; g.strokeStyle = '#1a1206'; g.lineWidth = 4; g.font = '900 52px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeText('♪', 32, 34); g.fillText('♪', 32, 34); });
+function нота(от, цель, скор) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:нотаТ, transparent:true, depthWrite:false })); sp.scale.set(0.5, 0.5, 1); sp.position.copy(от); scene.add(sp);
+  const до = new THREE.Vector3(цель.x + rnd(-0.5, 0.5), цель.y + 1, цель.z + rnd(-0.5, 0.5)); ТЕАТР.ноты.push({ sp, от:от.clone(), до, t:0, дл:Math.max(0.6, от.distanceTo(до)/(скор || 7)) });
+  Snd.тон([523, 587, 659, 784, 880][Math.floor(Math.random()*5)], 0.25, 'triangle', 0.05); }
+function нотыТик(dt) { for (let i = ТЕАТР.ноты.length - 1; i >= 0; i--) { const q = ТЕАТР.ноты[i]; q.t += dt/q.дл; const t = Math.min(1, q.t);
+    const p = q.от.clone().lerp(q.до, t); p.y += Math.sin(t*Math.PI)*1.2; q.sp.position.copy(p); q.sp.material.rotation = Math.sin(time*8 + i)*0.4;
+    for (const П of игроки()) { if (П === П2 && (!двойникЕсть || П2.И.лужа > 0)) continue; if (Math.hypot(p.x - П.И.x, p.z - П.И.z) < 0.6 && Math.abs(p.y - (П.И.y + 1.1)) < 1) { вКонтексте(П, () => урон(1, p)); q.t = 1; } }
+    if (q.t >= 1) { for (let k = 0; k < 4; k++) пых(p.x, Math.max(0.2, p.y), p.z, 0xfde68a); scene.remove(q.sp); ТЕАТР.ноты.splice(i, 1); } } }
+function нотыУбрать() { for (const q of ТЕАТР.ноты) scene.remove(q.sp); ТЕАТР.ноты.length = 0; }
+
+/* 🎻 музыкант: сидит на своём стуле и играет (смычок ходит, барабан стучит); под лучом увиливает; иногда швыряет ноту */
+ИИ_ПРИЗРАКОВ.музыкант = (п, dt, dx, dz, d) => {
+  if (п.оглушён > 0) return; const и = п.g.userData.инструмент;
+  п.y += (0.55 + Math.sin(п.t*2.4)*0.08 - п.y)*Math.min(1, dt*3);
+  if (и) { if (и.userData.смычок) и.userData.смычок.position.x = Math.sin(п.t*7)*0.08; if (и.userData['палочка1']) { и.userData['палочка1'].rotation.z = 0.6 + Math.sin(п.t*12)*0.4; и.userData['палочка-1'].rotation.z = -0.6 - Math.cos(п.t*12)*0.4; } }
+  if (п.подЛучом > 0) { п.подЛучом -= dt; const s = п.бок || 1; п.x += -dz/d*s*3.2*dt; п.z += dx/d*s*3.2*dt; }
+  else { п.x += (п.место[0] - п.x)*dt*1.2; п.z += (п.место[1] - п.z)*dt*1.2; }
+  п.фиксПоворот = Math.PI;                                                          // лицом к залу
+  if (d < 20 && (п.нотаКд = (п.нотаКд ?? rnd(2, 4)) - dt) <= 0) { п.нотаКд = rnd(3.5, 5.5); нота(new THREE.Vector3(п.x, п.y + 1, п.z), И, d > 12 ? 10 : 7); }   // ♪ стреляют уже с середины зала
+  п.x = clamp(п.x, -12, 12); п.z = clamp(п.z, 622.6, 627.8);
+};
+/* 🎹 Пианист: играет за роялем; задели лучом — ныряет В РОЯЛЬ. Рояль скачет, щёлкает крышкой, стреляет нотами.
+   Спектр на рояль 3 секунды — выскакивает оглушённым; не поймал — через 6 секунд снова в рояле */
+ИИ_ПРИЗРАКОВ.пианист = (п, dt, dx, dz, d) => {
+  const Р = ТЕАТР.рояль;
+  if (п.вРояле) { п.g.visible = false; п.x = Р.x; п.z = Р.z; п.y = ТЕАТР.сцена.y + 0.4; п.оглушён = 0; return; }
+  п.g.visible = true;
+  if (п.оглушён > 0) { п.вне = 0; return; }
+  if (п.играет) { п.x = Р.x - 0.0; п.z = Р.z - 1.05; п.y = ТЕАТР.сцена.y + 0.05; п.фиксПоворот = 0;
+    const р1 = п.g.userData['рука1'], р2 = п.g.userData['рука-1']; if (р1) { р1.rotation.x = -1.3 + Math.sin(п.t*14)*0.25; р2.rotation.x = -1.3 + Math.cos(п.t*13)*0.25; }
+    if ((п.подЛучом || 0) > 0) вселитьсяВРояль(п); return; }
+  // выскочил из рояля и пришёл в себя — летит обратно в рояль
+  п.фиксПоворот = undefined; п.вне = (п.вне || 0) + dt; п.y += (ТЕАТР.сцена.y + 0.5 + Math.sin(п.t*2)*0.2 - п.y)*Math.min(1, dt*3);
+  const к = Math.hypot(Р.x - п.x, Р.z - п.z) || 1; if (п.вне > 1.2) { п.x += (Р.x - п.x)/к*3.5*dt; п.z += (Р.z - п.z)/к*3.5*dt; if (к < 0.8) вселитьсяВРояль(п); }
+  if ((п.подЛучом || 0) > 0) { п.подЛучом -= dt; п.x += -dz/d*2.5*dt; п.z += dx/d*2.5*dt; }
+  п.x = clamp(п.x, ТЕАТР.сцена.x0 + 1, ТЕАТР.сцена.x1 - 1); п.z = clamp(п.z, ТЕАТР.сцена.z0 - 4, ТЕАТР.сцена.z1 - 1);
+};
+function вселитьсяВРояль(п) { const Р = ТЕАТР.рояль; п.играет = false; п.вРояле = true; п.неЛовится = '🎹 Пианист ВСЕЛИЛСЯ В РОЯЛЬ — луч не берёт! Свети СПЕКТРОМ (G / 🟢) на рояль — и вытеснишь его';
+  Р.вкл = true; Р.спектр = 0; Р.глаза.forEach(е => е.visible = true); Snd.морф(); for (let i = 0; i < 18; i++) пых(Р.x + rnd(-1, 1), ТЕАТР.сцена.y + rnd(0.5, 1.6), Р.z + rnd(-1, 1), 0xa5b4fc);
+  сказать('ПИАНИСТ', ['Мой рояль — моя крепость! Та-да-да-ДАМ!', 'Послушайте мою симфонию… СИМФОНИЮ НОТ!', 'Аплодисменты! Или я сыграю ещё громче!'][Math.floor(Math.random()*3)], 2.8); }
+function вытеснитьИзРояля(п) { const Р = ТЕАТР.рояль; п.вРояле = false; п.неЛовится = null; п.оглушён = 4.6; п.вне = 0; Р.вкл = false; Р.глаза.forEach(е => е.visible = false);
+  п.x = Р.x + rnd(-1, 1); п.z = Р.z - 2.6; п.y = ТЕАТР.сцена.y + 0.4; п.g.visible = true; Snd.удар(); Snd.стон(); for (let i = 0; i < 24; i++) пых(п.x + rnd(-0.8, 0.8), п.y + rnd(0, 2), п.z + rnd(-0.8, 0.8), 0xc4b5fd);
+  big('🟢 ВЫТЕСНЕН ИЗ РОЯЛЯ!\n🌀 всасывай, пока оглушён!', 1.8, '#86efac'); сказать('ПИАНИСТ', 'Ай! Этот зелёный свет режет мне уши!', 2.2); }
+/* 🎹 одержимый рояль: скачет по сцене за тобой, хлопает крышкой, стреляет нотами; рядом — кусается */
+function рояльТик(dt) {
+  const Р = ТЕАТР.рояль; if (!Р) return; const С = ТЕАТР.сцена;
+  if (!Р.вкл) { Р.петля.rotation.z += (-0.62 - Р.петля.rotation.z)*Math.min(1, dt*3); Р.g.position.y += (С.y - Р.g.position.y)*Math.min(1, dt*6); Р.g.rotation.z = 0;
+    Object.assign(Р.кирпич, { x0:Р.x - 1.1, x1:Р.x + 1.1, z0:Р.z - 1.5, z1:Р.z + 1.5, y0:0, y1:С.y + 1.05 }); return; }
+  Р.прыг += dt; const ц = ближайший(Р.x, Р.z).И, dx = ц.x - Р.x, dz = ц.z - Р.z, d = Math.hypot(dx, dz) || 1;
+  const фаза = (Р.прыг*1.6) % 1, скачок = Math.sin(фаза*Math.PI);
+  if (фаза < 0.55 && d > 2.4) { Р.x += dx/d*2.6*dt; Р.z += dz/d*2.6*dt; }
+  Р.x = clamp(Р.x, С.x0 + 1.4, С.x1 - 1.4); Р.z = clamp(Р.z, С.z0 + 1.2, С.z1 - 1.6);
+  Р.g.position.set(Р.x, С.y + скачок*0.6, Р.z); Р.g.rotation.z = Math.sin(Р.прыг*5)*0.06;
+  if (фаза > 0.95 && !Р.бум) { Р.бум = true; Snd.удар(); тряска = Math.max(тряска, 0.05); } if (фаза < 0.5) Р.бум = false;
+  Р.петля.rotation.z = -0.25 - Math.abs(Math.sin(Р.прыг*4))*0.8;                                // крышка хлопает, как пасть
+  Object.assign(Р.кирпич, { x0:Р.x - 1.1, x1:Р.x + 1.1, z0:Р.z - 1.5, z1:Р.z + 1.5, y0:0, y1:С.y + 1.05 + скачок*0.6 });
+  if ((Р.нотаКд = (Р.нотаКд ?? 1) - dt) <= 0 && d < 16) { Р.нотаКд = rnd(1.1, 1.7); нота(new THREE.Vector3(Р.x, С.y + 1.6, Р.z), ц, 8); }
+  if (d < 2.3 && (Р.кусь = (Р.кусь ?? 0) - dt) <= 0) { Р.кусь = 1.6; const П = ближайший(Р.x, Р.z); вКонтексте(П, () => урон(1, Р.g.position)); Snd.удар(); сказать('ПИАНИСТ', 'КЛАЦ! Фортиссимо!', 1.2); }
+  if (Math.random() < dt*6) Snd.тон([196, 262, 330, 392, 523][Math.floor(Math.random()*5)], 0.3, 'triangle', 0.04);
+}
+/* 🎼 музыка театра: оркестр — пока играют музыканты; рояль — пока играет Пианист */
+const Оркестр = { т:null, i:0 };
+function музыкаТеатра(вид) { clearInterval(Оркестр.т); Оркестр.т = null; if (!вид) return;
+  const мел = вид === 'рояль' ? [523, 659, 784, 1047, 784, 659, 587, 698, 880, 698, 587, 494] : [392, 440, 494, 523, 494, 440, 392, 330, 349, 392, 440, 392];
+  Оркестр.т = setInterval(() => { if (state !== 'play' || зона !== 'этаж4') return; const f = мел[Оркестр.i++ % мел.length], живых = ПРИЗРАКИ.filter(п => п.жив && п.вид === 'музыкант').length;
+    if (вид === 'рояль') { Snd.тон(f, 0.45, 'triangle', 0.07); Snd.тон(f/2, 0.6, 'sine', 0.04); }
+    else if (живых) { Snd.тон(f, 0.55, 'sawtooth', 0.012*живых, f*1.01); Snd.тон(f*0.5, 0.6, 'triangle', 0.02); } }, вид === 'рояль' ? 230 : 380); }
+
+/* ═══════════ 🎻 ЭТАП: ТЕАТР — поймать оркестр ═══════════ */
+ЭТАПЫ_ДАЛЬШЕ.театр = function этапТеатр(опц) {
+  опц = опц || {}; войтиВЗону('этаж4'); const Л = ЛИФТЫ.find(q => q.зн === 'этаж4'); if (!опц.приехал) встать(Л.кабина.x, 0, Л.кабина.z + 3.4, Math.PI); Л.этаж = 4; Л.откр = 1; фонарь(false);
+  нотыУбрать(); const Р = ТЕАТР.рояль; Object.assign(Р, { x:Р.дом.x, z:Р.дом.z, вкл:false }); Р.g.position.set(Р.x, ТЕАТР.сцена.y, Р.z); Р.глаза.forEach(е => е.visible = false);
+  big('🎻 4-й этаж · театр', 2.2, '#f5d68a'); задача('🎻 Слышишь музыку? Зрительный зал — за большими дверями фойе (на север)');
+  сказать('ТЫ', 'Четвёртый этаж… Афиши: «Призрачная симфония — сегодня!». Из зала доносится музыка. Кто там играет посреди ночи?', 5.5);
+  let шаг = 'фойе', поймано = 0; музыкаТеатра('оркестр');
+  сюжет = { этап:'театр',
+    тик(dt) { нотыТик(dt); рояльТик(dt);
+      if (шаг === 'фойе' && И.z > 601) { шаг = 'оркестр'; Snd.морф(); big('🎼 ПРИЗРАЧНЫЙ ОРКЕСТР!', 2, '#93c5fd');
+        for (const [x, z, вид] of ТЕАТР.места) { const п = новыйПризрак('музыкант', x, 0.55, z, { бок:Math.random() < 0.5 ? -1 : 1, место:[x, z] });
+          scene.remove(п.g); п.g = музыкантМодель(вид); п.g.position.set(x, 0.55, z); scene.add(п.g); const зв = п.звёзды; п.g.add(зв); }
+        сказать('ТЫ', 'Целый оркестр призраков! Скрипка, виолончель, труба, барабан, флейта… И они швыряются нотами!', 5); }
+      if (шаг === 'оркестр') задача(`🎻 Призрачный оркестр: ⚡ вспышка → 🌀 всасывай! Уворачивайся от нот ♪. Поймано ${поймано}/5`);
+    },
+    поймал(п) { if (п.вид !== 'музыкант') return; поймано++; if (поймано < 5) return; шаг = 'тишина'; музыкаТеатра(null); Snd.победа();
+      сказать('ТЫ', 'Оркестр пойман! Тишина… Стоп. А рояль на сцене… играет САМ?', 4.5);
+      setTimeout(() => { if (сюжет && сюжет.этап === 'театр') { дошёлДо('пианист'); этапId = 'пианист'; ЭТАПЫ_ДАЛЬШЕ.пианист({ сразу:true }); } }, 2600); },
+  };
+};
+/* ═══════════ 🎹 БОСС: ПИАНИСТ ═══════════ */
+ЭТАПЫ_ДАЛЬШЕ.пианист = function этапПианист(опц) {
+  опц = опц || {};
+  if (!опц.сразу) { войтиВЗону('этаж4'); встать(0, 0, 618, 0); фонарь(false); }
+  нотыУбрать(); const Р = ТЕАТР.рояль; Object.assign(Р, { x:Р.дом.x, z:Р.дом.z, вкл:false, спектр:0 }); Р.g.position.set(Р.x, ТЕАТР.сцена.y, Р.z); Р.глаза.forEach(е => е.visible = false);
+  музыкаТеатра('рояль'); let шаг = 'бой', t = 0;
+  const босс = новыйПризрак('пианист', Р.x, ТЕАТР.сцена.y + 0.05, Р.z - 1.05, { играет:true });
+  big('🎹 ПИАНИСТ!', 2, '#c4b5fd');
+  сказать('ПИАНИСТ', 'О! Публика! Прошу тишины — маэстро играет… А где же аплодисменты? Тогда — фортиссимо!', 5);
+  сюжет = { этап:'пианист',
+    тик(dt) { t += dt; нотыТик(dt); рояльТик(dt);
+      if (босс.играет && t > 6) { вселитьсяВРояль(босс); музыкаТеатра(null); }
+      // 🟢 Спектр на рояль — вытесняет Пианиста
+      if (босс.жив && босс.вРояле) { let светят = false;
+        for (const П of игроки()) { if (!(П === активный ? спектрЖму : П.спектр) || !ЕСТЬ.спектр) continue;
+          вКонтексте(П, () => { camera.getWorldDirection(_н); const v = new THREE.Vector3(Р.x - И.x, ТЕАТР.сцена.y + 0.9 - (И.y + ГЛАЗА), Р.z - И.z), dd = v.length(); if (dd < 12 && v.dot(_н)/dd > 0.86) светят = true; }); }
+        Р.спектр = Math.max(0, (Р.спектр || 0) + (светят ? dt : -dt*0.5));
+        if (светят && Math.random() < dt*20) пых(Р.x + rnd(-1, 1), ТЕАТР.сцена.y + rnd(0.6, 1.5), Р.z + rnd(-1, 1), 0x86efac);
+        if (Р.спектр >= 3) { Р.спектр = 0; вытеснитьИзРояля(босс); } }
+      if (шаг === 'бой') задача(босс.вРояле ? `🎹 Рояль ожил! Свети 🟢 СПЕКТРОМ (G) на рояль: ${Math.round((Р.спектр || 0)/3*100)}% · уворачивайся от нот и крышки! · ПИАНИСТ ${Math.max(0, Math.ceil(босс.hp/босс.max*100))}%`
+        : `🎹 Пианист вне рояля! ⚡ вспышка → 🌀 всасывай, пока он не залез обратно! · ${Math.max(0, Math.ceil(босс.hp/босс.max*100))}%`);
+      if (шаг === 'кнопка') задача('🔘 Из рояля выкатилась кнопка «6» — подбери ✋');
+    },
+    поймал(п) { if (п.вид !== 'пианист') return; шаг = 'кнопка'; музыкаТеатра(null); нотыУбрать(); Р.вкл = false; Р.глаза.forEach(е => е.visible = false);
+      big('🎹 ПИАНИСТ ПОЙМАН!', 2.2, '#86efac'); сказать('ТЫ', 'Браво! Ой… из рояля что-то выкатилось и звякнуло. Кнопка лифта!', 4);
+      const кн = кнопкиЛифта[0]; кн.visible = true; кн.position.set(Р.x - 1.6, ТЕАТР.сцена.y + 0.2, Р.z - 1.6); },
+    действие() { const кн = кнопкиЛифта[0];
+      if (шаг === 'кнопка' && кн.visible && Math.hypot(И.x - кн.position.x, И.z - кн.position.z) < 2) { кн.visible = false; шаг = 'всё'; Snd.победа(); дошёлДо('этаж6');
+        big('🔘 КНОПКА ЛИФТА «6»!', 2.4, '#fde68a');
+        setTimeout(() => победаЭтапа('🎹 БОСС ПОЙМАН: ПИАНИСТ', 'Ты светил Спектром на одержимый рояль, пока Пианист не выскочил, — и затянул маэстро с белой причёской в Ракету! Из рояля выкатилась кнопка «6». Что ждёт на шестом этаже — Марк расскажет!', null), 2600); return true; } },
+  };
+};
+
+
 /* ═══════════ 🏗 СОБИРАЕМ ОТЕЛЬ ═══════════ */
-построитьЭтаж(); построитьПодвал(); построитьЛобби(); построитьЛабораторию(); построитьРуки(); построитьБельевую(); построитьНомер508(); построитьЭтаж3(); построитьЭтаж2(); делаЛифтов(); построитьЩельБака(); построитьКлеткуЛаб();
+построитьЭтаж(); построитьПодвал(); построитьЛобби(); построитьЛабораторию(); построитьРуки(); построитьБельевую(); построитьНомер508(); построитьЭтаж3(); построитьЭтаж2(); построитьЭтаж4(); делаЛифтов(); построитьЩельБака(); построитьКлеткуЛаб();
 for (let i = 0; i < 6; i++) ЛОБ.баррикада.push(баррикадаВещь(i));
 ЛОБ.кирпичБарр = кирпич(-277.2, -274.2, -2, 2, -50, -49, 'баррикада');
 зам = человекМодель({ пиджак:0x2a2d36, брюки:0x1c1e26, галстук:0x9f1239, бейдж:'ЗАМ. ДИРЕКТОРА', волосы:0x111111, кожа:0xd9c2a8 }); зам.visible = false; scene.add(зам);
@@ -2928,7 +3240,7 @@ $('паузаКн').onclick = () => паузу(); $('вдвоёмКн').onclick 
 $('экранКн').onclick = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else наВесьЭкран(); };
 $('какКн').onclick = () => $('как').classList.remove('hidden'); $('какНазад').onclick = () => $('как').classList.add('hidden');
 $('главыКн').onclick = () => { const сп = $('списокГлав'); сп.innerHTML = '<p>🏨 <b>Глава 1</b> — ночь, подвал, лобби и первый босс. Пройденное можно переиграть.</p>';
-  ЭТАПЫ.forEach((э, i) => { if (i && э.глава !== ЭТАПЫ[i - 1].глава) { const h = document.createElement('p'); h.innerHTML = '🏨 <b>Глава ' + э.глава + '</b> — ' + ({ 2:'бак, лифт и пятый этаж', 3:'зелёная жижа, двойник и третий этаж', 4:'второй этаж: ресторан' }[э.глава] || 'новый этаж') + '. Боссы — с короной 👑.'; сп.appendChild(h); }
+  ЭТАПЫ.forEach((э, i) => { if (i && э.глава !== ЭТАПЫ[i - 1].глава) { const h = document.createElement('p'); h.innerHTML = '🏨 <b>Глава ' + э.глава + '</b> — ' + ({ 2:'бак, лифт и пятый этаж', 3:'зелёная жижа, двойник и третий этаж', 4:'второй этаж: ресторан', 5:'четвёртый этаж: музыкальный театр' }[э.глава] || 'новый этаж') + '. Боссы — с короной 👑.'; сп.appendChild(h); }
     const можно = ДОШЁЛ.has(э.id); const b = document.createElement('button'); b.className = 'глава' + (можно ? '' : ' закрыта');
     b.innerHTML = `<span class="em">${можно ? э.em : '🔒'}</span><span><b>${i + 1}. ${э.имя}</b>${э.босс ? ' 👑' : ''}<small>${можно ? э.кратко : 'Ещё не дошёл'}</small></span>`;
     if (можно) b.onclick = () => начатьЭтап(э.id); сп.appendChild(b); });
@@ -2939,6 +3251,11 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) па�
 
 /* 🧪 для автотестов */
 window.__dbg = {
+  get театр(){ const Р = ТЕАТР.рояль, б = ПРИЗРАКИ.find(п => п.вид === 'пианист'); return { музыкантов:ПРИЗРАКИ.filter(п => п.жив && п.вид === 'музыкант').length, нот:ТЕАТР.ноты.length,
+    рояль:Р ? { вкл:Р.вкл, спектр:+(Р.спектр || 0).toFixed(2), x:+Р.x.toFixed(1), z:+Р.z.toFixed(1) } : null, пианист:б ? { жив:б.жив, вРояле:!!б.вРояле, играет:!!б.играет, оглушён:+б.оглушён.toFixed(1), hp:Math.round(б.hp) } : null,
+    кнопки:[...кнопкиЕсть()], этап:этапId, шаг:сюжет && сюжет.этап }; },
+  поймать(вид){ for (const п of ПРИЗРАКИ) if (п.жив && (!вид || п.вид === вид)) п.ловят = 0.01; return true; },
+  вытеснить(){ const б = ПРИЗРАКИ.find(п => п.вид === 'пианист' && п.жив); if (б && б.вРояле) вытеснитьИзРояля(б); return !!б; },
   get state(){ return state; }, get pos(){ return { x:+И.x.toFixed(2), y:+И.y.toFixed(2), z:+И.z.toFixed(2), yaw:+И.yaw.toFixed(2), зона, где:И.где ? И.где.имя : null }; },
   stage(id, о){ начатьЭтап(id, о); return этапId; }, tp(x, z, y){ Object.assign(И, { x, z, y:y ?? И.y, vy:0 }); return this.pos; },
   look(x, z, y){ const dx = x - И.x, dz = z - И.z; И.yaw = Math.atan2(-dx, -dz); if (y !== undefined) И.pitch = Math.atan2(y - (И.y + ГЛАЗА), Math.hypot(dx, dz)); return И.yaw; },
