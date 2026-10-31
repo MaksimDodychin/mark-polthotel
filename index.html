@@ -126,7 +126,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#7c3aed">
-  <script>window.__APP_VER = "4587e8dd5c";</script>
+  <script>window.__APP_VER = "76953bc55f";</script>
 </head>
 <body>
 <div class="screen" id="меню">
@@ -949,6 +949,10 @@ function баррикадаВещь(i) {
   return { g, цель:{ x:цель[0], y:цель[1], z:цель[2], r:цель[3] }, вид };
 }
 
+// Жёсткая труба задаётся точками крепления: поворот и длина не расходятся с ручкой/щёткой.
+function vacuumFitTube(mesh,a,b){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);mesh.position.copy(A.add(B).multiplyScalar(.5));mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());mesh.scale.y=(d.length()+.035)/mesh.geometry.parameters.height;return mesh;}
+function vacuumJoint(g,a,b,r,material){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,14),material);vacuumFitTube(m,a,b);m.castShadow=true;g.add(m);return m;}
+
 
 /* ═══════════ 🚀 РАКЕТА-3000 и 🔦 СПЕКТР ═══════════ */
 /* 🚀 РАКЕТА-3000 — как «Ракета» из «Гонок пылесосов» (просьба Марка): лежачий красный корпус-капсула, серебряный нос,
@@ -1014,7 +1018,7 @@ function построитьРуки() {
   const тр = сетка(new THREE.CylinderGeometry(0.03, 0.03, 0.62, 16), хром, 0, 0.0, -0.2, п); тр.rotation.x = Math.PI/2 - 0.12;
   сетка(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 16), мат.пластик(0x2c2f38, 0.4), 0, 0.03, 0.12, п).rotation.x = Math.PI/2;
   const щ = щёткаМодель(); щ.scale.setScalar(0.3); щ.position.set(-0.02, -0.1, -0.58); щ.rotation.x = -1.05; п.add(щ); РУКИ.щётка = щ;   // наклонена к тебе — видно жёлтый ворс
-  const шея = сетка(new THREE.CylinderGeometry(0.022, 0.03, 0.08, 12), мат.пластик(0x2c2f38, 0.4), 0, -0.035, -0.5, п); шея.rotation.x = 0.5;
+  const шея = сетка(new THREE.CylinderGeometry(0.022, 0.03, 0.08, 12), мат.пластик(0x2c2f38, 0.4), 0, -0.035, -0.5, п); шея.rotation.x = 0.5; РУКИ.стыкЩётки = шея;
   РУКИ.сопло = щ.userData.щель; РУКИ.кольцо = щ.userData.щель;
   const р = ракетаКорпус(); р.scale.setScalar(0.2); р.position.set(0.2, -0.2, -0.02); р.rotation.set(0.35, -0.5, 0.1); п.add(р); РУКИ.ракетаВРуке = р;
   const шл = new THREE.CatmullRomCurve3([[0, 0.03, 0.18], [0.04, -0.1, 0.25], [0.08, -0.26, 0.05], [0.12, -0.3, -0.1]].map(([x, y, z]) => new THREE.Vector3(x, y, z)));
@@ -1145,6 +1149,8 @@ function стюардМодель() {
   return g;
 }
 
+function соединитьЩёткуРакеты(р){if(!р.стыкЩётки||!р.щётка)return;р.щётка.updateMatrix();const конец=new THREE.Vector3(0,.18,.12).applyMatrix4(р.щётка.matrix);vacuumFitTube(р.стыкЩётки,[0,-.037,-.50],конец.toArray());}
+
 
 /* ═══════════ 🧍 ИГРОК И УПРАВЛЕНИЕ (вид от первого лица) ═══════════ */
 let И = { x:27, y:0, z:8, vy:0, yaw:0.5, pitch:-0.05, наЗемле:true, бег:false, шагT:0, сердца:3, неуязв:0, оглушён:0, качание:0 };
@@ -1260,6 +1266,7 @@ function обновитьКамеру(dt) {
   if (тряска > 0) { camera.position.x += rnd(-1, 1)*тряска; camera.position.y += rnd(-1, 1)*тряска; тряска = Math.max(0, тряска - dt*0.8); }
   const р = РУКИ; р.левая.position.y = -0.3 + Math.sin(И.качание*0.5)*0.012; р.правая.position.y = -0.3 + Math.cos(И.качание*0.5)*0.012;
   р.правая.position.z = -0.55 + (всасЖму ? 0.03 : 0) + (выдувЖму ? -0.02 : 0);
+  соединитьЩёткуРакеты(р);
 }
 let тряска = 0;
 function урон(n, откуда) {
@@ -6733,6 +6740,8 @@ window.__dbg = {
         const зр = new Т.Mesh(new Т.SphereGeometry(0.045, 10, 8), мт(0x111111, 0.3)); зр.position.set(s*0.15, 0.5, 0.51); тело.add(зр); }
       const шл = new Т.Mesh(new Т.TorusGeometry(0.3, 0.06, 8, 20, Math.PI*1.1), мт(0x374151, 0.5)); шл.position.set(0, 0.62, -0.2); шл.rotation.y = Math.PI/2; тело.add(шл);
       const щ = new Т.Mesh(new Т.BoxGeometry(0.5, 0.08, 0.16), мт(0x1f2937, 0.5)); щ.position.set(0, 0.06, 0.5); тело.add(щ);
+      const aКреп=new Т.Vector3(0,.25,.38),bКреп=new Т.Vector3(0,.09,.50),dКреп=bКреп.clone().sub(aКреп);
+      const муфта=new Т.Mesh(new Т.CylinderGeometry(.075,.075,dКреп.length()+.04,12),мт(0x374151,.5));муфта.position.copy(aКреп.add(bКреп).multiplyScalar(.5));муфта.quaternion.setFromUnitVectors(new Т.Vector3(0,1,0),dКреп.normalize());тело.add(муфта);
       for (const [x, z] of [[-0.36, 0.25], [0.36, 0.25], [-0.36, -0.25], [0.36, -0.25]]) { const кол = new Т.Mesh(new Т.CylinderGeometry(0.1, 0.1, 0.08, 14), мт(0x111111, 0.7)); кол.rotation.z = Math.PI/2; кол.position.set(x, 0.1, z); тело.add(кол); u.ноги.push(кол); }
       u.голова = купол; u.высота = 1.25; u.верх = 0.95;
     } else {
