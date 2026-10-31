@@ -1,5 +1,5 @@
 // Scoped offline application updater; version changes with the payload and updater.
-const VERSION = '78ea656b22';
+const VERSION = '5673c6f2ce';
 const PREFIX = "polthotel-";
 const CACHE = PREFIX + VERSION;
 const SCOPE = new URL(self.registration.scope);
