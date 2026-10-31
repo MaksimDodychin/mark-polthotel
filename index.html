@@ -126,7 +126,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#7c3aed">
-  <script>window.__APP_VER = "5673c6f2ce";</script>
+  <script>window.__APP_VER = "edf9424eec";</script>
 </head>
 <body>
 <div class="screen" id="меню">
@@ -7535,7 +7535,7 @@ window.__dbg = {
 /* scoped PWA updater: the installed offline copy stays until a verified replacement activates. */
 (function () {
   var scope = new URL('./', location.href).href;
-  var pending = '', checking = false, registrationPromise = null;
+  var pending = '', checking = false, navigating = false, registrationPromise = null;
   function banner(text) {
     var d = document.getElementById('updBanner');
     if (!d) { d = document.createElement('div'); d.id = 'updBanner';
@@ -7550,12 +7550,23 @@ window.__dbg = {
     return registrationPromise;
   }
   function navigate(version) {
+    if (navigating) return;
+    navigating = true;
     var url = new URL(location.href); url.searchParams.set('v', version);
     if (url.href === location.href) location.reload(); else location.replace(url.href);
   }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('controllerchange', function () {
-    if (pending) navigate(pending);
-  });
+  function workerVersion(worker) {
+    return new Promise(function (resolve) {
+      if (!worker) { resolve(''); return; }
+      var channel = new MessageChannel();
+      var timer = setTimeout(function () { channel.port1.close(); resolve(''); }, 1000);
+      channel.port1.onmessage = function (event) {
+        clearTimeout(timer); channel.port1.close(); resolve(event.data && event.data.version);
+      };
+      try { worker.postMessage({ type: 'APP_VERSION' }, [channel.port2]); }
+      catch (_) { clearTimeout(timer); channel.port1.close(); resolve(''); }
+    });
+  }
   async function version() {
     var url = new URL('version.json', scope); url.searchParams.set('t', Date.now());
     var response = await fetch(url.href, { cache: 'no-store' });
@@ -7575,6 +7586,15 @@ window.__dbg = {
       if (reg) {
         // The worker verifies index.html, fills its new cache, then takes over atomically.
         await reg.update();
+        // update() also succeeds when the latest worker was already installed.
+        // In that case there is no controllerchange, but the open page may still be old.
+        var deadline = Date.now() + 20000;
+        while (Date.now() < deadline) {
+          var active = navigator.serviceWorker.controller || reg.active;
+          if (await workerVersion(active) === next) { navigate(next); return true; }
+          await new Promise(function (resolve) { setTimeout(resolve, 250); });
+        }
+        throw new Error('updated worker not ready');
       } else {
         var target = new URL('index.html', scope); target.searchParams.set('v', next);
         var response = await fetch(target.href, { cache: 'reload' });
@@ -7583,7 +7603,6 @@ window.__dbg = {
         if (!match || match[1] !== next) throw new Error('update not ready');
         navigate(next);
       }
-      setTimeout(function () { if (pending) { pending = ''; var d = document.getElementById('updBanner'); if (d) d.remove(); } }, 20000);
       return true;
     } catch (_) {
       pending = ''; var d = banner('📴 Обновление пока недоступно — игра работает офлайн');
@@ -7608,6 +7627,10 @@ window.__dbg = {
   }
   window.__forceUpdate = function () { return applyUpdate(); };
   window.__checkUpdate = function () { return checkVersion(true); };
+  // Replace the shared legacy button: it used to delete every game's offline cache,
+  // even if downloading the replacement had failed. Only this verified update is needed.
+  var updateButton = document.getElementById('mkn-обновить');
+  if (updateButton) updateButton.onclick = function () { return checkVersion(true); };
   window.addEventListener('load', function () {
     register().catch(function () {});
     setTimeout(checkVersion, 500); setTimeout(checkVersion, 4000);

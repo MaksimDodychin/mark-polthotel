@@ -1,11 +1,15 @@
 // Scoped offline application updater; version changes with the payload and updater.
-const VERSION = '5673c6f2ce';
+const VERSION = 'edf9424eec';
 const PREFIX = "polthotel-";
 const CACHE = PREFIX + VERSION;
 const SCOPE = new URL(self.registration.scope);
 const INDEX = new URL('index.html', SCOPE).href;
 const ASSETS = ["./manifest.webmanifest","./icon-192.png","./icon-512.png","./icon-512-maskable.png","./apple-touch-icon.png"];
 const belongs = url => url.origin === SCOPE.origin && url.pathname.startsWith(SCOPE.pathname);
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'APP_VERSION' && event.ports[0])
+    event.ports[0].postMessage({ version: VERSION });
+});
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     // Installation must fail if the new HTML is missing, stale, or only half deployed.
@@ -38,7 +42,9 @@ self.addEventListener('activate', event => {
     const windows = hadOld ? await self.clients.matchAll({ type: 'window' }) : [];
     for (const client of windows) {
       const url = new URL(client.url);
-      if (!belongs(url) || url.searchParams.get('v') === VERSION) continue;
+      // A matching query string does not prove the page is fresh: the previous
+      // offline worker may have returned old HTML for that very URL.
+      if (!belongs(url)) continue;
       url.searchParams.set('v', VERSION);
       // Do not await navigation: it can wait for this activation to finish.
       client.navigate(url.href).catch(() => {});
