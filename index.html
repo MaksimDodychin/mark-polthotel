@@ -126,7 +126,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#7c3aed">
-  <script>window.__APP_VER = "26197c36b8";</script>
+  <script>window.__APP_VER = "4232f99e01";</script>
 </head>
 <body>
 <div class="screen" id="меню">
@@ -6107,7 +6107,7 @@ for(const m of МЕСТА_ПОМ)ЗОНЫ[m.зона]={свет:[],туман:[0
 function имяКоллекцииКрис(f){return f>=18?МЕСТА_ПОМ[f-18].имя:'этаж '+f;}
 async function загрузитьПоместья(){if(ПОМ.готово)return;return ПОМ.загрузка??=(async()=>{
  for(let i=0;i<2;i++){const m=МЕСТА_ПОМ[i],d=ДАННЫЕ_ПОМЕСТИЙ[i],model=await new THREE.ObjectLoader().parseAsync(d.model);model.name=m.имя+' · исходный каркас';
-  const ext=model.clone(true);ext.rotation.y=-Math.PI/2;ext.position.set(...m.ext);УЛ.мир.add(ext);
+  const ext=model.clone(true);if(i===1){for(const o of [...ext.children]){const p=o.geometry?.parameters;if(p?.width===68&&p.height===3&&p.depth===.5&&Math.abs(o.matrix.elements[14]-29)<.01){ext.remove(o);for(const x of [-178,-142]){const gate=o.clone();gate.geometry=new THREE.BoxGeometry(32,3,.5);gate.matrixAutoUpdate=true;gate.position.set(x,1.5,29);gate.updateMatrix();gate.name='Ограда с открытым проходом';ext.add(gate);}}}}ext.rotation.y=-Math.PI/2;ext.position.set(...m.ext);УЛ.мир.add(ext);
   const inside=model;inside.position.x=m.dx;inside.visible=false;inside.traverse(o=>{const p=o.geometry?.parameters;const двороваяОграда=i===1&&p?.height===3&&(p.width>50||p.depth>50),сплошнойФасад=i===1&&p?.width===34&&p.height===16&&p.depth===18;if(o.userData.дверь||двороваяОграда||сплошнойФасад)o.visible=false;});scene.add(inside);ПОМ.дома.push(inside);
   for(const w of d.walls){if(i===1&&(Math.abs(w.x1-w.x2)>50||w.x1===-194||w.x1===-126))continue;const prop=d.props.find(p=>Math.abs(p.z-w.z1)<.01&&Math.abs(p.z-w.z2)<.01&&Math.abs(p.x-(w.x1+w.x2)/2)<.01);кирпич(m.dx+Math.min(w.x1,w.x2)-.17,m.dx+Math.max(w.x1,w.x2)+.17,Math.min(w.z1,w.z2)-.17,Math.max(w.z1,w.z2)+.17,0,prop?prop.h:7.6,'стена '+m.имя);}
   // Точные полы исходного холла, комнат и обхода бассейна. Вода остаётся в чаше.
@@ -6116,7 +6116,7 @@ async function загрузитьПоместья(){if(ПОМ.готово)retur
   else{пол(-177,-143,-52,-8.7);кирпич(-1318,-1282,-8.7,-8.3,0,8,'граница дома');for(const [x,z] of [[-160,-15],[-169,-31],[-151,-31],[-160,-45]])лампа(m.зона,m.dx+x,5.4,z,0xffdcc2,55,28);}
  }
  ПОМ.готово=true;обновитьПоместья();})();}
-function обновитьПоместья(){ПОМ.дома.forEach((g,i)=>g.visible=КРИС.активно&&зона===МЕСТА_ПОМ[i].зона);for(const [f,arr] of Object.entries(ПОМ.списки))for(const q of arr){const m=МЕСТА_ПОМ[+f-18],тут=КРИС.активно&&зона===m.зона,есть=ДОШЁЛ.has(ключКрис(+f,q.i)),открыт=ДОШЁЛ.has('тайник_'+m.id+'_'+q.i);q.g.visible=тут&&!есть&&(!q.тайник||открыт);if(q.ящик)q.ящик.visible=тут&&!открыт;}}
+function обновитьПоместья(){УЛ.мир.visible=КРИС.активно&&зона==='улица';ПОМ.дома.forEach((g,i)=>g.visible=КРИС.активно&&зона===МЕСТА_ПОМ[i].зона);for(const [f,arr] of Object.entries(ПОМ.списки))for(const q of arr){const m=МЕСТА_ПОМ[+f-18],тут=КРИС.активно&&зона===m.зона,есть=ДОШЁЛ.has(ключКрис(+f,q.i)),открыт=ДОШЁЛ.has('тайник_'+m.id+'_'+q.i);q.g.visible=тут&&!есть&&(!q.тайник||открыт);if(q.ящик)q.ящик.visible=тут&&!открыт;}}
 function путьПоместья(m){const step=.8,start={x:m.вход[0],z:m.вход[1]},queue=[{...start,a:0,b:0,k:'0,0'}],seen=new Set(['0,0']),map=new Map();
  const free=(x,z)=>{if(Math.abs(опора(x,z,0).y)>.25)return false;return !кирпичи.some(k=>k.y1>ШАГ&&k.y0<РОСТ&&x>k.x0-R-.07&&x<k.x1+R+.07&&z>k.z0-R-.07&&z<k.z1+R+.07);};
  for(let n=0;n<queue.length&&n<16000;n++){const q=queue[n];map.set(q.k,q);for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]){const A=q.a+a,B=q.b+b,k=A+','+B;if(seen.has(k))continue;seen.add(k);const x=start.x+A*step,z=start.z+B*step;if(free(x,z))queue.push({x,z,a:A,b:B,k,род:q.k});}}
